@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mein Bereich – DLRG</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <nav>
+    <div class="logo"><span>DLRG</span> Wettkampf-App</div>
+    <div class="nav-right">
+      <span class="nav-user" id="nav-user"></span>
+      <button class="logout-btn" onclick="logout()">Abmelden</button>
+    </div>
+  </nav>
+
+  <div class="container">
+
+    <div class="tabs">
+      <button class="tab-btn" data-tab="tab-training">🏊 Training</button>
+      <button class="tab-btn" data-tab="tab-disciplines">🎯 Disziplinen</button>
+      <button class="tab-btn" data-tab="tab-times">⏱ Zeiten</button>
+    </div>
+
+    <!-- ─── TAB: TRAINING ─── -->
+    <div class="tab-content" id="tab-training">
+      <div class="card">
+        <h2>Trainingsanwesenheit</h2>
+        <p style="margin-bottom:1rem; color:var(--text-light); font-size:0.88rem;">
+          Gib an, ob du zu den geplanten Trainings kommst.
+        </p>
+        <div id="training-list"><div class="spinner">Lädt …</div></div>
+      </div>
+    </div>
+
+    <!-- ─── TAB: DISZIPLINEN ─── -->
+    <div class="tab-content" id="tab-disciplines">
+      <div class="card">
+        <h2>Meine Disziplinen</h2>
+        <p style="margin-bottom:1rem; color:var(--text-light); font-size:0.88rem;">
+          Diese Disziplinen bist du zugewiesen. Bei Änderungen bitte Trainer kontaktieren.
+        </p>
+        <div id="disc-list"><div class="spinner">Lädt …</div></div>
+      </div>
+    </div>
+
+    <!-- ─── TAB: ZEITEN ─── -->
+    <div class="tab-content" id="tab-times">
+      <div class="card">
+        <h2>Meine Wettkampfzeiten</h2>
+        <p style="margin-bottom:1rem; color:var(--text-light); font-size:0.88rem;">
+          Format: <strong>Minuten:Sekunden,Hundertstel</strong> (z.B. <code>1:23,45</code>)
+        </p>
+        <div id="times-list"><div class="spinner">Lädt …</div></div>
+      </div>
+    </div>
+
+  </div><!-- /container -->
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script src="app.js"></script>
+  <script>
+    let currentUser = null;
+    let swimmerId   = null;
+
+    // ─── INIT ──────────────────────────────────────────────────
+    (async () => {
+      currentUser = await checkAuth('schwimmer');
+      if (!currentUser) return;
+
+      // Schwimmerprofil laden
+      const { data: swimmer } = await db
+        .from('swimmers')
+        .select('id, name, year')
+        .eq('user_id', currentUser.id)
+        .single();
+
+      if (!swimmer) {
+        document.body.innerHTML = '<p style="padding:2rem">Kein Schwimmerprofil gefunden. Bitte Trainer kontaktieren.</p>';
+        return;
+      }
+      swimmerId = swimmer.id;
+      document.getElementById('nav-user').textContent = swimmer.name + ' (' + swimmer.year + ')';
+
+      initTabs();
+      loadTrainings();
+      loadDisciplines();
+      loadTimes();
+    })();
+
+    // ─── TRAININGS ─────────────────────────────────────────────
+    async function loadTrainings() {
+      const { data: trainings } = await db
+        .from('trainings')
+        .select('id, date')
+        .order('date', { ascending: true });
+
+      // Anwesenheiten des Schwimmers laden
+      const { data: attendances } = await db
+        .from('attendance')
+        .select('training_id, status')
+        .eq('user_id', currentUser.id);
+
+      const attMap = {};
+      (attendances || []).forEach(a => { attMap[a.training_id] = a.status; });
+
+      const container = document.getElementById('training-list');
+      if (!trainings || trainings.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-light)">Noch keine Trainings eingetragen.</p>';
+        return;
+      }
+
+      let html = '<table><thead><tr><th>Datum</th><th>Kommst du?</th><th>Speichern</th></tr></thead><tbody>';
+      trainings.forEach(t => {
+        const status = attMap[t.id] || '';
+        html += `<tr>
+          <td>${formatDate(t.date)}</td>
+          <td>
+            <div class="attendance-radio">
+              <label><input type="radio" name="att-${t.id}" value="ja" ${status === 'ja' ? 'checked' : ''}> Ja</label>
+              <label><input type="radio" name="att-${t.id}" value="nein" ${status === 'nein' ? 'checked' : ''}> Nein</label>
+            </div>
+          </td>
+          <td>
+            <button class="btn btn-sm btn-secondary" onclick="saveAttendance('${t.id}')">Speichern</button>
+          </td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    async function saveAttendance(trainingId) {
+      const selected = document.querySelector(`input[name="att-${trainingId}"]:checked`);
+      if (!selected) { alert('Bitte Ja oder Nein auswählen.'); return; }
+
+      await db.from('attendance').upsert({
+        user_id:     currentUser.id,
+        training_id: trainingId,
+        status:      selected.value
+      }, { onConflict: 'user_id,training_id' });
+
+      // Kurze Bestätigung
+      const btn = document.querySelector(`button[onclick="saveAttendance('${trainingId}')"]`);
+      btn.textContent = '✓ Gespeichert';
+      btn.style.color = 'var(--success)';
+      setTimeout(() => { btn.textContent = 'Speichern'; btn.style.color = ''; }, 2000);
+    }
+
+    // ─── DISZIPLINEN ───────────────────────────────────────────
+    async function loadDisciplines() {
+      const { data } = await db
+        .from('swimmer_disciplines')
+        .select('discipline_id, disciplines(name)')
+        .eq('swimmer_id', swimmerId);
+
+      const container = document.getElementById('disc-list');
+      if (!data || data.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-light)">Keine Disziplinen zugewiesen.</p>';
+        return;
+      }
+      let html = '<div class="disc-tags">';
+      data.forEach(d => {
+        html += `<span class="disc-tag">${d.disciplines.name}</span>`;
+      });
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    // ─── ZEITEN ────────────────────────────────────────────────
+    async function loadTimes() {
+      // Disziplinen des Schwimmers
+      const { data: myDiscs } = await db
+        .from('swimmer_disciplines')
+        .select('discipline_id, disciplines(name)')
+        .eq('swimmer_id', swimmerId);
+
+      // Eingetragene Zeiten
+      const { data: times } = await db
+        .from('times')
+        .select('discipline_id, time')
+        .eq('user_id', currentUser.id);
+
+      const timeMap = {};
+      (times || []).forEach(t => { timeMap[t.discipline_id] = t.time; });
+
+      const container = document.getElementById('times-list');
+      if (!myDiscs || myDiscs.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-light)">Keine Disziplinen zugewiesen.</p>';
+        return;
+      }
+
+      let html = '<table><thead><tr><th>Disziplin</th><th>Zeit (mm:ss,hh)</th><th>Speichern</th></tr></thead><tbody>';
+      myDiscs.forEach(d => {
+        const current = timeMap[d.discipline_id];
+        html += `<tr>
+          <td>${d.disciplines.name}</td>
+          <td>
+            <input type="text"
+              id="time-${d.discipline_id}"
+              placeholder="1:23,45"
+              value="${current !== undefined && current !== null ? formatTime(current) : ''}"
+              style="width:120px; padding:6px 10px; border:1.5px solid var(--border); border-radius:6px; font-size:0.9rem;">
+          </td>
+          <td>
+            <button class="btn btn-sm btn-secondary" onclick="saveTime('${d.discipline_id}')">Speichern</button>
+          </td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    async function saveTime(disciplineId) {
+      const input = document.getElementById('time-' + disciplineId);
+      const val   = input.value.trim();
+
+      if (!val) {
+        alert('Bitte eine Zeit eingeben.');
+        return;
+      }
+      const seconds = parseTime(val);
+      if (seconds === null) {
+        alert('Ungültiges Format. Bitte nutze mm:ss,hh (z.B. 1:23,45)');
+        return;
+      }
+
+      const { error } = await db.from('times').upsert({
+        user_id:       currentUser.id,
+        discipline_id: disciplineId,
+        time:          seconds
+      }, { onConflict: 'user_id,discipline_id' });
+
+      const btn = document.querySelector(`button[onclick="saveTime('${disciplineId}')"]`);
+      if (error) {
+        btn.textContent = '✗ Fehler';
+        btn.style.color = 'var(--danger)';
+      } else {
+        btn.textContent = '✓ Gespeichert';
+        btn.style.color = 'var(--success)';
+      }
+      setTimeout(() => { btn.textContent = 'Speichern'; btn.style.color = ''; }, 2500);
+    }
+  </script>
+</body>
+</html>
