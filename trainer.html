@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trainer-Dashboard – DLRG</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <nav>
+    <div class="logo"><span>DLRG</span> Trainer-Dashboard</div>
+    <div class="nav-right">
+      <span class="nav-user">Trainer</span>
+      <button class="logout-btn" onclick="logout()">Abmelden</button>
+    </div>
+  </nav>
+
+  <div class="container">
+
+    <!-- Statistik-Übersicht -->
+    <div class="stats-row" id="stats-row">
+      <div class="stat-card"><div class="stat-num" id="stat-swimmers">–</div><div class="stat-label">Schwimmer</div></div>
+      <div class="stat-card"><div class="stat-num" id="stat-trainings">–</div><div class="stat-label">Trainings</div></div>
+      <div class="stat-card"><div class="stat-num" id="stat-disciplines">–</div><div class="stat-label">Disziplinen</div></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn" data-tab="tab-attendance">📋 Anwesenheit</button>
+      <button class="tab-btn" data-tab="tab-times">⏱ Zeiten</button>
+      <button class="tab-btn" data-tab="tab-accounts">👤 Konten</button>
+    </div>
+
+    <!-- ─── TAB: ANWESENHEIT ─── -->
+    <div class="tab-content" id="tab-attendance">
+      <div class="card">
+        <h2>Anwesenheitsübersicht</h2>
+        <div class="form-group" style="max-width:280px; margin-bottom:1rem">
+          <label for="select-training">Training auswählen</label>
+          <select id="select-training" onchange="loadAttendanceOverview()">
+            <option value="">– bitte wählen –</option>
+          </select>
+        </div>
+        <div id="attendance-overview"></div>
+      </div>
+    </div>
+
+    <!-- ─── TAB: ZEITEN ─── -->
+    <div class="tab-content" id="tab-times">
+      <div class="card">
+        <h2>Alle Wettkampfzeiten</h2>
+        <div class="form-group" style="max-width:280px; margin-bottom:1rem">
+          <label for="select-swimmer-times">Schwimmer auswählen</label>
+          <select id="select-swimmer-times" onchange="loadTimesForSwimmer()">
+            <option value="">– bitte wählen –</option>
+          </select>
+        </div>
+        <div id="times-overview"></div>
+      </div>
+    </div>
+
+    <!-- ─── TAB: KONTEN ─── -->
+    <div class="tab-content" id="tab-accounts">
+      <div class="card">
+        <h2>Schwimmerkonten verwalten</h2>
+        <div id="accounts-list"><div class="spinner">Lädt …</div></div>
+      </div>
+    </div>
+
+  </div><!-- /container -->
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script src="app.js"></script>
+  <script>
+    let allSwimmers  = [];
+    let allTrainings = [];
+
+    // ─── INIT ──────────────────────────────────────────────────
+    (async () => {
+      const user = await checkAuth('trainer');
+      if (!user) return;
+
+      initTabs();
+      await loadStats();
+      await loadTrainingSelect();
+      await loadSwimmerSelect();
+      loadAccounts();
+    })();
+
+    // ─── STATISTIKEN ───────────────────────────────────────────
+    async function loadStats() {
+      const [sw, tr, di] = await Promise.all([
+        db.from('swimmers').select('id', { count: 'exact', head: true }),
+        db.from('trainings').select('id', { count: 'exact', head: true }),
+        db.from('disciplines').select('id', { count: 'exact', head: true }),
+      ]);
+      document.getElementById('stat-swimmers').textContent   = sw.count ?? '–';
+      document.getElementById('stat-trainings').textContent  = tr.count ?? '–';
+      document.getElementById('stat-disciplines').textContent = di.count ?? '–';
+    }
+
+    // ─── DROPDOWNS BEFÜLLEN ────────────────────────────────────
+    async function loadTrainingSelect() {
+      const { data } = await db.from('trainings').select('id, date').order('date', { ascending: true });
+      allTrainings = data || [];
+      const sel = document.getElementById('select-training');
+      allTrainings.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value       = t.id;
+        opt.textContent = formatDate(t.date);
+        sel.appendChild(opt);
+      });
+    }
+
+    async function loadSwimmerSelect() {
+      const { data } = await db.from('swimmers').select('id, name, year').order('name');
+      allSwimmers = data || [];
+      const sel = document.getElementById('select-swimmer-times');
+      allSwimmers.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value       = s.id;
+        opt.textContent = s.name + ' (' + s.year + ')';
+        sel.appendChild(opt);
+      });
+    }
+
+    // ─── ANWESENHEIT ───────────────────────────────────────────
+    async function loadAttendanceOverview() {
+      const trainingId = document.getElementById('select-training').value;
+      const container  = document.getElementById('attendance-overview');
+      if (!trainingId) { container.innerHTML = ''; return; }
+
+      container.innerHTML = '<div class="spinner">Lädt …</div>';
+
+      const { data: att } = await db
+        .from('attendance')
+        .select('user_id, status, swimmers(name, year)')
+        .eq('training_id', trainingId);
+
+      // Alle Schwimmer zeigen, auch ohne Eintrag
+      const { data: allSw } = await db
+        .from('swimmers')
+        .select('id, name, year, user_id')
+        .order('name');
+
+      const attMap = {};
+      (att || []).forEach(a => { attMap[a.user_id] = a.status; });
+
+      let html = '<table><thead><tr><th>Schwimmer</th><th>Jahrgang</th><th>Status</th></tr></thead><tbody>';
+      let ja = 0, nein = 0, offen = 0;
+      (allSw || []).forEach(s => {
+        const status = attMap[s.user_id];
+        let badge;
+        if (status === 'ja')   { badge = '<span class="badge-ja">Ja</span>';   ja++;    }
+        else if (status === 'nein') { badge = '<span class="badge-nein">Nein</span>'; nein++;  }
+        else                   { badge = '<span style="color:var(--text-light); font-size:0.8rem">–</span>'; offen++; }
+
+        html += `<tr><td>${s.name}</td><td>${s.year}</td><td>${badge}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      html += `<p style="margin-top:0.8rem; font-size:0.82rem; color:var(--text-light)">
+        ✅ Ja: <strong>${ja}</strong> &nbsp;|&nbsp; ❌ Nein: <strong>${nein}</strong> &nbsp;|&nbsp; ⏳ Offen: <strong>${offen}</strong>
+      </p>`;
+      container.innerHTML = html;
+    }
+
+    // ─── ZEITEN FÜR SCHWIMMER ──────────────────────────────────
+    async function loadTimesForSwimmer() {
+      const swimmerId = document.getElementById('select-swimmer-times').value;
+      const container = document.getElementById('times-overview');
+      if (!swimmerId) { container.innerHTML = ''; return; }
+
+      container.innerHTML = '<div class="spinner">Lädt …</div>';
+
+      // user_id des Schwimmers ermitteln
+      const swimmer = allSwimmers.find(s => s.id === swimmerId);
+      if (!swimmer) return;
+
+      // Disziplinen des Schwimmers
+      const { data: discLinks } = await db
+        .from('swimmer_disciplines')
+        .select('discipline_id, disciplines(id, name)')
+        .eq('swimmer_id', swimmerId);
+
+      // Zeiten des Schwimmers
+      const { data: times } = await db
+        .from('times')
+        .select('discipline_id, time')
+        .eq('user_id', swimmer.user_id || swimmerId);  // Fallback
+
+      // Alle Zeiten nach user_id suchen
+      const { data: timesById } = await db
+        .from('times')
+        .select('discipline_id, time')
+        .eq('user_id', (await db.from('swimmers').select('user_id').eq('id', swimmerId).single()).data?.user_id);
+
+      const timeMap = {};
+      (timesById || times || []).forEach(t => { timeMap[t.discipline_id] = t.time; });
+
+      if (!discLinks || discLinks.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-light)">Keine Disziplinen zugewiesen.</p>';
+        return;
+      }
+
+      let html = '<table><thead><tr><th>Disziplin</th><th>Zeit</th><th>Bearbeiten</th></tr></thead><tbody>';
+      discLinks.forEach(d => {
+        const disc = d.disciplines;
+        const t    = timeMap[disc.id];
+        html += `<tr>
+          <td>${disc.name}</td>
+          <td>
+            <input type="text"
+              id="trainer-time-${disc.id}"
+              value="${t !== undefined && t !== null ? formatTime(t) : ''}"
+              placeholder="1:23,45"
+              style="width:120px; padding:6px 10px; border:1.5px solid var(--border); border-radius:6px; font-size:0.9rem;">
+          </td>
+          <td>
+            <button class="btn btn-sm btn-secondary"
+              onclick="saveTimeTrainer('${swimmerId}','${disc.id}')">Speichern</button>
+          </td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    async function saveTimeTrainer(swimmerId, disciplineId) {
+      // user_id des Schwimmers holen
+      const { data: sw } = await db.from('swimmers').select('user_id').eq('id', swimmerId).single();
+      if (!sw?.user_id) { alert('Schwimmer-Konto nicht gefunden.'); return; }
+
+      const input   = document.getElementById('trainer-time-' + disciplineId);
+      const val     = input.value.trim();
+      if (!val) { alert('Bitte eine Zeit eingeben.'); return; }
+      const seconds = parseTime(val);
+      if (seconds === null) { alert('Ungültiges Format (z.B. 1:23,45)'); return; }
+
+      const { error } = await db.from('times').upsert({
+        user_id:       sw.user_id,
+        discipline_id: disciplineId,
+        time:          seconds
+      }, { onConflict: 'user_id,discipline_id' });
+
+      const btn = document.querySelector(`button[onclick="saveTimeTrainer('${swimmerId}','${disciplineId}')"]`);
+      if (error) {
+        btn.textContent = '✗ Fehler';
+        btn.style.color = 'var(--danger)';
+      } else {
+        btn.textContent = '✓ Gespeichert';
+        btn.style.color = 'var(--success)';
+      }
+      setTimeout(() => { btn.textContent = 'Speichern'; btn.style.color = ''; }, 2500);
+    }
+
+    // ─── KONTEN VERWALTEN ──────────────────────────────────────
+    async function loadAccounts() {
+      const { data: swimmers } = await db
+        .from('swimmers')
+        .select('id, name, year, user_id')
+        .order('name');
+
+      // Aktiv-Status aus users-Tabelle
+      const userIds = (swimmers || []).map(s => s.user_id).filter(Boolean);
+      const { data: usersData } = await db
+        .from('users')
+        .select('id, active')
+        .in('id', userIds);
+
+      const activeMap = {};
+      (usersData || []).forEach(u => { activeMap[u.id] = u.active; });
+
+      const container = document.getElementById('accounts-list');
+      if (!swimmers || swimmers.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-light)">Keine Schwimmer gefunden.</p>';
+        return;
+      }
+
+      let html = '<table><thead><tr><th>Name</th><th>Jahrgang</th><th>Status</th><th>Aktion</th></tr></thead><tbody>';
+      swimmers.forEach(s => {
+        const isActive = activeMap[s.user_id] !== false; // Default: aktiv
+        const badge = isActive
+          ? '<span class="badge-aktiv">Aktiv</span>'
+          : '<span class="badge-inaktiv">Inaktiv</span>';
+        const btnLabel = isActive ? 'Deaktivieren' : 'Aktivieren';
+        const btnClass = isActive ? 'btn-danger' : 'btn-success';
+
+        html += `<tr>
+          <td>${s.name}</td>
+          <td>${s.year}</td>
+          <td>${badge}</td>
+          <td>
+            <button class="btn btn-sm ${btnClass}"
+              onclick="toggleAccount('${s.user_id}', ${isActive})">${btnLabel}</button>
+          </td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    async function toggleAccount(userId, currentlyActive) {
+      if (!confirm(currentlyActive ? 'Konto wirklich deaktivieren?' : 'Konto wieder aktivieren?')) return;
+
+      await db.from('users')
+        .update({ active: !currentlyActive })
+        .eq('id', userId);
+
+      loadAccounts(); // neu laden
+    }
+  </script>
+</body>
+</html>
