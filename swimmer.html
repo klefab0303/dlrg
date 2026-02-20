@@ -8,223 +8,212 @@
 </head>
 <body>
 
-  <nav>
-    <div class="logo"><span>DLRG</span> Wettkampf-App</div>
-    <div class="nav-right">
-      <span class="nav-user" id="nav-user"></span>
-      <button class="logout-btn" onclick="logout()">Abmelden</button>
-    </div>
-  </nav>
+<nav>
+  <div class="logo"><span>DLRG</span> Wettkampf-App</div>
+  <div class="nav-right">
+    <span class="nav-user" id="nav-user"></span>
+    <button class="logout-btn" onclick="logout()">Abmelden</button>
+  </div>
+</nav>
 
-  <div class="container">
-    <div class="tabs">
-      <button class="tab-btn" data-tab="tab-training">🏊 Training</button>
-      <button class="tab-btn" data-tab="tab-disciplines">🎯 Disziplinen</button>
-      <button class="tab-btn" data-tab="tab-times">⏱ Zeiten</button>
-    </div>
+<div class="container">
+  <div class="tabs">
+    <button class="tab-btn" data-tab="tab-training">🏊 Training</button>
+    <button class="tab-btn" data-tab="tab-einzel">🎯 Einzel</button>
+    <button class="tab-btn" data-tab="tab-mannschaft">👥 Mannschaft</button>
+    <button class="tab-btn" data-tab="tab-times">⏱ Zeiten</button>
+  </div>
 
-    <div class="tab-content" id="tab-training">
-      <div class="card">
-        <h2>Trainingsanwesenheit</h2>
-        <p style="margin-bottom:1rem; color:var(--text-light); font-size:0.88rem;">
-          Gib an, ob du zu den geplanten Trainings kommst.
-        </p>
-        <div id="training-list"><div class="spinner">Lädt …</div></div>
-      </div>
-    </div>
-
-    <div class="tab-content" id="tab-disciplines">
-      <div class="card">
-        <h2>Meine Disziplinen</h2>
-        <p style="margin-bottom:1rem; color:var(--text-light); font-size:0.88rem;">
-          Klicke auf eine Disziplin, um die Beschreibung zu sehen.
-        </p>
-        <div id="disc-list"><div class="spinner">Lädt …</div></div>
-      </div>
-    </div>
-
-    <div class="tab-content" id="tab-times">
-      <div class="card">
-        <h2>Meine Wettkampfzeiten</h2>
-        <p style="margin-bottom:1rem; color:var(--text-light); font-size:0.88rem;">
-          Format: <strong>mm:ss,hh</strong> (z.B. <code>1:23,45</code>)
-        </p>
-        <div id="times-list"><div class="spinner">Lädt …</div></div>
-      </div>
+  <!-- TRAINING -->
+  <div class="tab-content" id="tab-training">
+    <div class="card">
+      <h2>Meine Trainingstermine</h2>
+      <p style="margin-bottom:1rem;color:var(--text-light);font-size:0.88rem;">
+        Du siehst nur Trainings, zu denen du eingeteilt bist.
+      </p>
+      <div id="training-list"><div class="spinner">Lädt …</div></div>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase.js"></script>
-  <script src="app.js"></script>
-  <script>
-    let currentUser = null;
-    let swimmerId   = null;
+  <!-- EINZEL -->
+  <div class="tab-content" id="tab-einzel">
+    <div class="card">
+      <h2>Einzeldisziplinen</h2>
+      <div id="einzel-list"><div class="spinner">Lädt …</div></div>
+    </div>
+  </div>
 
-    (async () => {
-      currentUser = await checkAuth('schwimmer');
-      if (!currentUser) return;
+  <!-- MANNSCHAFT -->
+  <div class="tab-content" id="tab-mannschaft">
+    <div class="card">
+      <h2>Mannschaftsdisziplinen</h2>
+      <div id="mannschaft-list"><div class="spinner">Lädt …</div></div>
+    </div>
+  </div>
 
-      const { data: swimmer } = await db
-        .from('swimmers')
-        .select('id, name, year')
-        .eq('user_id', currentUser.id)
-        .single();
+  <!-- ZEITEN -->
+  <div class="tab-content" id="tab-times">
+    <div class="card">
+      <h2>Meine Wettkampfzeiten</h2>
+      <p style="margin-bottom:0.5rem;color:var(--text-light);font-size:0.88rem;">Format: <code>mm:ss,hh</code> (z.B. <code>1:23,45</code>)</p>
+      <div class="section-title">Einzeldisziplinen</div>
+      <div id="times-einzel"></div>
+      <div class="section-title" style="margin-top:1.5rem">Mannschaftsdisziplinen</div>
+      <div id="times-mannschaft"></div>
+    </div>
+  </div>
+</div>
 
-      if (!swimmer) {
-        document.body.innerHTML = '<p style="padding:2rem">Kein Schwimmerprofil gefunden. Bitte Trainer kontaktieren.</p>';
-        return;
-      }
-      swimmerId = swimmer.id;
-      document.getElementById('nav-user').textContent = swimmer.name + ' (' + swimmer.year + ')';
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase.js"></script>
+<script src="app.js"></script>
+<script>
+let currentUser = null;
+let swimmerId = null;
 
-      initTabs();
-      loadTrainings();
-      loadDisciplines();
-      loadTimes();
-    })();
+(async () => {
+  currentUser = await checkAuth('schwimmer');
+  if (!currentUser) return;
 
-    // ─── TRAININGS ─────────────────────────────────────────
-    async function loadTrainings() {
-      const { data: trainings } = await db
-        .from('trainings').select('id, date').order('date', { ascending: true });
+  const { data: swimmer } = await db.from('swimmers').select('id,name,year').eq('user_id', currentUser.id).single();
+  if (!swimmer) { document.body.innerHTML = '<p style="padding:2rem">Kein Schwimmerprofil gefunden.</p>'; return; }
+  swimmerId = swimmer.id;
+  document.getElementById('nav-user').textContent = swimmer.name + ' (' + swimmer.year + ')';
 
-      const { data: attendances } = await db
-        .from('attendance').select('training_id, status').eq('user_id', currentUser.id);
+  initTabs();
+  loadTrainings();
+  loadDisciplines('einzel');
+  loadDisciplines('mannschaft');
+  loadTimes();
+})();
 
-      const attMap = {};
-      (attendances || []).forEach(a => { attMap[a.training_id] = a.status; });
+// ─── TRAININGS (nur zugewiesene) ───────────────────────────
+async function loadTrainings() {
+  // Nur Trainings laden, zu denen der Schwimmer eingeteilt ist
+  const { data: assignments } = await db
+    .from('training_swimmers').select('training_id').eq('swimmer_id', swimmerId);
+  const ids = (assignments || []).map(a => a.training_id);
 
-      const container = document.getElementById('training-list');
-      if (!trainings || trainings.length === 0) {
-        container.innerHTML = '<p style="color:var(--text-light)">Noch keine Trainings eingetragen.</p>';
-        return;
-      }
+  const container = document.getElementById('training-list');
+  if (ids.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-light)">Keine Trainings zugewiesen.</p>';
+    return;
+  }
 
-      let html = '<table><thead><tr><th>Datum</th><th>Kommst du?</th><th></th></tr></thead><tbody>';
-      trainings.forEach(t => {
-        const status = attMap[t.id] || '';
-        html += `<tr>
-          <td>${formatDate(t.date)}</td>
-          <td>
-            <div class="attendance-radio">
-              <label><input type="radio" name="att-${t.id}" value="ja" ${status === 'ja' ? 'checked' : ''}> Ja</label>
-              <label><input type="radio" name="att-${t.id}" value="nein" ${status === 'nein' ? 'checked' : ''}> Nein</label>
-            </div>
-          </td>
-          <td><button class="btn btn-sm btn-secondary" onclick="saveAttendance('${t.id}')">Speichern</button></td>
-        </tr>`;
-      });
-      html += '</tbody></table>';
-      container.innerHTML = html;
+  const { data: trainings } = await db
+    .from('trainings').select('id,date,start_time,end_time').in('id', ids).order('date');
+
+  const { data: attendances } = await db
+    .from('attendance').select('training_id,status').eq('user_id', currentUser.id);
+  const attMap = {};
+  (attendances || []).forEach(a => { attMap[a.training_id] = a.status; });
+
+  let html = '<table><thead><tr><th>Datum</th><th>Uhrzeit</th><th>Kommst du?</th><th></th></tr></thead><tbody>';
+  (trainings || []).forEach(t => {
+    const status = attMap[t.id] || '';
+    html += `<tr>
+      <td>${formatDate(t.date)}</td>
+      <td>${formatSlot(t.start_time, t.end_time) || '–'}</td>
+      <td>
+        <div class="attendance-radio">
+          <label><input type="radio" name="att-${t.id}" value="ja" ${status==='ja'?'checked':''}> Ja</label>
+          <label><input type="radio" name="att-${t.id}" value="nein" ${status==='nein'?'checked':''}> Nein</label>
+        </div>
+      </td>
+      <td><button class="btn btn-sm btn-secondary" onclick="saveAtt('${t.id}',this)">Speichern</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+async function saveAtt(trainingId, btn) {
+  const sel = document.querySelector(`input[name="att-${trainingId}"]:checked`);
+  if (!sel) { alert('Bitte Ja oder Nein wählen.'); return; }
+  const { error } = await db.from('attendance').upsert({
+    user_id: currentUser.id, training_id: trainingId, status: sel.value
+  }, { onConflict: 'user_id,training_id' });
+  confirmBtn(btn, !error);
+}
+
+// ─── DISZIPLINEN (getrennt) ────────────────────────────────
+async function loadDisciplines(type) {
+  const { data } = await db
+    .from('swimmer_disciplines')
+    .select('discipline_id, disciplines(name, type, description, team_size)')
+    .eq('swimmer_id', swimmerId);
+
+  const filtered = (data || []).filter(d => d.disciplines.type === type);
+  const container = document.getElementById(type + '-list');
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-light)">Keine ' + (type === 'einzel' ? 'Einzeldisziplinen' : 'Mannschaftsdisziplinen') + ' zugewiesen.</p>';
+    return;
+  }
+
+  let html = '';
+  filtered.forEach(d => {
+    const disc = d.disciplines;
+    html += `<div class="disc-item">
+      <div class="disc-item-header" onclick="toggleDisc(this)">
+        <span><strong>${disc.name}</strong>
+          ${type === 'mannschaft' ? ' <span class="badge-mannschaft">' + disc.team_size + 'er-Staffel</span>' : ''}
+        </span>
+        <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
+      </div>
+      <div class="disc-item-body">${disc.description || 'Keine Beschreibung.'}</div>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+// ─── ZEITEN (getrennt nach Typ) ────────────────────────────
+async function loadTimes() {
+  const { data: myDiscs } = await db
+    .from('swimmer_disciplines')
+    .select('discipline_id, disciplines(id,name,type)')
+    .eq('swimmer_id', swimmerId);
+
+  const { data: times } = await db
+    .from('times').select('discipline_id,time').eq('user_id', currentUser.id);
+  const timeMap = {};
+  (times || []).forEach(t => { timeMap[t.discipline_id] = t.time; });
+
+  ['einzel', 'mannschaft'].forEach(type => {
+    const filtered = (myDiscs || []).filter(d => d.disciplines.type === type);
+    const container = document.getElementById('times-' + type);
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<p style="color:var(--text-light)">Keine Disziplinen.</p>';
+      return;
     }
 
-    async function saveAttendance(trainingId) {
-      const selected = document.querySelector(`input[name="att-${trainingId}"]:checked`);
-      if (!selected) { alert('Bitte Ja oder Nein auswählen.'); return; }
+    let html = '<table><thead><tr><th>Disziplin</th><th>Zeit</th><th></th></tr></thead><tbody>';
+    filtered.forEach(d => {
+      const t = timeMap[d.discipline_id];
+      html += `<tr>
+        <td>${d.disciplines.name}</td>
+        <td><input type="text" id="time-${d.discipline_id}" placeholder="1:23,45"
+          value="${t != null ? formatTime(t) : ''}"
+          style="width:120px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem;"></td>
+        <td><button class="btn btn-sm btn-secondary" onclick="saveTime('${d.discipline_id}',this)">Speichern</button></td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  });
+}
 
-      await db.from('attendance').upsert({
-        user_id: currentUser.id, training_id: trainingId, status: selected.value
-      }, { onConflict: 'user_id,training_id' });
-
-      const btn = event.target;
-      btn.textContent = '✓';
-      setTimeout(() => { btn.textContent = 'Speichern'; }, 2000);
-    }
-
-    // ─── DISZIPLINEN (mit Beschreibung + Typ) ──────────────
-    async function loadDisciplines() {
-      const { data } = await db
-        .from('swimmer_disciplines')
-        .select('discipline_id, disciplines(name, type, description, team_size)')
-        .eq('swimmer_id', swimmerId);
-
-      const container = document.getElementById('disc-list');
-      if (!data || data.length === 0) {
-        container.innerHTML = '<p style="color:var(--text-light)">Keine Disziplinen zugewiesen.</p>';
-        return;
-      }
-
-      let html = '';
-      data.forEach((d, i) => {
-        const disc = d.disciplines;
-        const typeBadge = disc.type === 'mannschaft'
-          ? '<span class="badge-mannschaft">Mannschaft (4er)</span>'
-          : '<span class="badge-einzel">Einzel</span>';
-        const desc = disc.description || 'Keine Beschreibung vorhanden.';
-
-        html += `
-        <div class="disc-item">
-          <div class="disc-item-header" onclick="toggleDisc(this)">
-            <span class="disc-name">${disc.name}</span>
-            <span class="disc-meta">${typeBadge} <span class="disc-arrow">▶</span></span>
-          </div>
-          <div class="disc-item-body">${desc}</div>
-        </div>`;
-      });
-      container.innerHTML = html;
-    }
-
-    function toggleDisc(header) {
-      header.classList.toggle('open');
-      header.nextElementSibling.classList.toggle('open');
-    }
-
-    // ─── ZEITEN ────────────────────────────────────────────
-    async function loadTimes() {
-      const { data: myDiscs } = await db
-        .from('swimmer_disciplines')
-        .select('discipline_id, disciplines(name, type)')
-        .eq('swimmer_id', swimmerId);
-
-      const { data: times } = await db
-        .from('times').select('discipline_id, time').eq('user_id', currentUser.id);
-
-      const timeMap = {};
-      (times || []).forEach(t => { timeMap[t.discipline_id] = t.time; });
-
-      const container = document.getElementById('times-list');
-      if (!myDiscs || myDiscs.length === 0) {
-        container.innerHTML = '<p style="color:var(--text-light)">Keine Disziplinen zugewiesen.</p>';
-        return;
-      }
-
-      let html = '<table><thead><tr><th>Disziplin</th><th>Typ</th><th>Zeit</th><th></th></tr></thead><tbody>';
-      myDiscs.forEach(d => {
-        const disc = d.disciplines;
-        const current = timeMap[d.discipline_id];
-        const typeBadge = disc.type === 'mannschaft'
-          ? '<span class="badge-mannschaft">Team</span>'
-          : '<span class="badge-einzel">Einzel</span>';
-
-        html += `<tr>
-          <td>${disc.name}</td>
-          <td>${typeBadge}</td>
-          <td><input type="text" id="time-${d.discipline_id}" placeholder="1:23,45"
-            value="${current != null ? formatTime(current) : ''}"
-            style="width:110px; padding:6px 10px; border:1.5px solid var(--border); border-radius:6px; font-size:0.9rem;"></td>
-          <td><button class="btn btn-sm btn-secondary" onclick="saveTime('${d.discipline_id}')">Speichern</button></td>
-        </tr>`;
-      });
-      html += '</tbody></table>';
-      container.innerHTML = html;
-    }
-
-    async function saveTime(disciplineId) {
-      const input = document.getElementById('time-' + disciplineId);
-      const val = input.value.trim();
-      if (!val) { alert('Bitte eine Zeit eingeben.'); return; }
-      const seconds = parseTime(val);
-      if (seconds === null) { alert('Format: mm:ss,hh (z.B. 1:23,45)'); return; }
-
-      const { error } = await db.from('times').upsert({
-        user_id: currentUser.id, discipline_id: disciplineId, time: seconds
-      }, { onConflict: 'user_id,discipline_id' });
-
-      const btn = event.target;
-      btn.textContent = error ? '✗' : '✓';
-      setTimeout(() => { btn.textContent = 'Speichern'; }, 2500);
-    }
-  </script>
+async function saveTime(discId, btn) {
+  const val = document.getElementById('time-' + discId).value.trim();
+  if (!val) { alert('Bitte Zeit eingeben.'); return; }
+  const sec = parseTime(val);
+  if (sec === null) { alert('Format: mm:ss,hh'); return; }
+  const { error } = await db.from('times').upsert({
+    user_id: currentUser.id, discipline_id: discId, time: sec
+  }, { onConflict: 'user_id,discipline_id' });
+  confirmBtn(btn, !error);
+}
+</script>
 </body>
 </html>
