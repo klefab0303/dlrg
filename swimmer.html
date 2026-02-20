@@ -17,14 +17,12 @@
   </nav>
 
   <div class="container">
-
     <div class="tabs">
       <button class="tab-btn" data-tab="tab-training">🏊 Training</button>
       <button class="tab-btn" data-tab="tab-disciplines">🎯 Disziplinen</button>
       <button class="tab-btn" data-tab="tab-times">⏱ Zeiten</button>
     </div>
 
-    <!-- ─── TAB: TRAINING ─── -->
     <div class="tab-content" id="tab-training">
       <div class="card">
         <h2>Trainingsanwesenheit</h2>
@@ -35,29 +33,26 @@
       </div>
     </div>
 
-    <!-- ─── TAB: DISZIPLINEN ─── -->
     <div class="tab-content" id="tab-disciplines">
       <div class="card">
         <h2>Meine Disziplinen</h2>
         <p style="margin-bottom:1rem; color:var(--text-light); font-size:0.88rem;">
-          Diese Disziplinen bist du zugewiesen. Bei Änderungen bitte Trainer kontaktieren.
+          Klicke auf eine Disziplin, um die Beschreibung zu sehen.
         </p>
         <div id="disc-list"><div class="spinner">Lädt …</div></div>
       </div>
     </div>
 
-    <!-- ─── TAB: ZEITEN ─── -->
     <div class="tab-content" id="tab-times">
       <div class="card">
         <h2>Meine Wettkampfzeiten</h2>
         <p style="margin-bottom:1rem; color:var(--text-light); font-size:0.88rem;">
-          Format: <strong>Minuten:Sekunden,Hundertstel</strong> (z.B. <code>1:23,45</code>)
+          Format: <strong>mm:ss,hh</strong> (z.B. <code>1:23,45</code>)
         </p>
         <div id="times-list"><div class="spinner">Lädt …</div></div>
       </div>
     </div>
-
-  </div><!-- /container -->
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js"></script>
@@ -66,12 +61,10 @@
     let currentUser = null;
     let swimmerId   = null;
 
-    // ─── INIT ──────────────────────────────────────────────────
     (async () => {
       currentUser = await checkAuth('schwimmer');
       if (!currentUser) return;
 
-      // Schwimmerprofil laden
       const { data: swimmer } = await db
         .from('swimmers')
         .select('id, name, year')
@@ -91,18 +84,13 @@
       loadTimes();
     })();
 
-    // ─── TRAININGS ─────────────────────────────────────────────
+    // ─── TRAININGS ─────────────────────────────────────────
     async function loadTrainings() {
       const { data: trainings } = await db
-        .from('trainings')
-        .select('id, date')
-        .order('date', { ascending: true });
+        .from('trainings').select('id, date').order('date', { ascending: true });
 
-      // Anwesenheiten des Schwimmers laden
       const { data: attendances } = await db
-        .from('attendance')
-        .select('training_id, status')
-        .eq('user_id', currentUser.id);
+        .from('attendance').select('training_id, status').eq('user_id', currentUser.id);
 
       const attMap = {};
       (attendances || []).forEach(a => { attMap[a.training_id] = a.status; });
@@ -113,7 +101,7 @@
         return;
       }
 
-      let html = '<table><thead><tr><th>Datum</th><th>Kommst du?</th><th>Speichern</th></tr></thead><tbody>';
+      let html = '<table><thead><tr><th>Datum</th><th>Kommst du?</th><th></th></tr></thead><tbody>';
       trainings.forEach(t => {
         const status = attMap[t.id] || '';
         html += `<tr>
@@ -124,9 +112,7 @@
               <label><input type="radio" name="att-${t.id}" value="nein" ${status === 'nein' ? 'checked' : ''}> Nein</label>
             </div>
           </td>
-          <td>
-            <button class="btn btn-sm btn-secondary" onclick="saveAttendance('${t.id}')">Speichern</button>
-          </td>
+          <td><button class="btn btn-sm btn-secondary" onclick="saveAttendance('${t.id}')">Speichern</button></td>
         </tr>`;
       });
       html += '</tbody></table>';
@@ -138,23 +124,19 @@
       if (!selected) { alert('Bitte Ja oder Nein auswählen.'); return; }
 
       await db.from('attendance').upsert({
-        user_id:     currentUser.id,
-        training_id: trainingId,
-        status:      selected.value
+        user_id: currentUser.id, training_id: trainingId, status: selected.value
       }, { onConflict: 'user_id,training_id' });
 
-      // Kurze Bestätigung
-      const btn = document.querySelector(`button[onclick="saveAttendance('${trainingId}')"]`);
-      btn.textContent = '✓ Gespeichert';
-      btn.style.color = 'var(--success)';
-      setTimeout(() => { btn.textContent = 'Speichern'; btn.style.color = ''; }, 2000);
+      const btn = event.target;
+      btn.textContent = '✓';
+      setTimeout(() => { btn.textContent = 'Speichern'; }, 2000);
     }
 
-    // ─── DISZIPLINEN ───────────────────────────────────────────
+    // ─── DISZIPLINEN (mit Beschreibung + Typ) ──────────────
     async function loadDisciplines() {
       const { data } = await db
         .from('swimmer_disciplines')
-        .select('discipline_id, disciplines(name)')
+        .select('discipline_id, disciplines(name, type, description, team_size)')
         .eq('swimmer_id', swimmerId);
 
       const container = document.getElementById('disc-list');
@@ -162,27 +144,41 @@
         container.innerHTML = '<p style="color:var(--text-light)">Keine Disziplinen zugewiesen.</p>';
         return;
       }
-      let html = '<div class="disc-tags">';
-      data.forEach(d => {
-        html += `<span class="disc-tag">${d.disciplines.name}</span>`;
+
+      let html = '';
+      data.forEach((d, i) => {
+        const disc = d.disciplines;
+        const typeBadge = disc.type === 'mannschaft'
+          ? '<span class="badge-mannschaft">Mannschaft (4er)</span>'
+          : '<span class="badge-einzel">Einzel</span>';
+        const desc = disc.description || 'Keine Beschreibung vorhanden.';
+
+        html += `
+        <div class="disc-item">
+          <div class="disc-item-header" onclick="toggleDisc(this)">
+            <span class="disc-name">${disc.name}</span>
+            <span class="disc-meta">${typeBadge} <span class="disc-arrow">▶</span></span>
+          </div>
+          <div class="disc-item-body">${desc}</div>
+        </div>`;
       });
-      html += '</div>';
       container.innerHTML = html;
     }
 
-    // ─── ZEITEN ────────────────────────────────────────────────
+    function toggleDisc(header) {
+      header.classList.toggle('open');
+      header.nextElementSibling.classList.toggle('open');
+    }
+
+    // ─── ZEITEN ────────────────────────────────────────────
     async function loadTimes() {
-      // Disziplinen des Schwimmers
       const { data: myDiscs } = await db
         .from('swimmer_disciplines')
-        .select('discipline_id, disciplines(name)')
+        .select('discipline_id, disciplines(name, type)')
         .eq('swimmer_id', swimmerId);
 
-      // Eingetragene Zeiten
       const { data: times } = await db
-        .from('times')
-        .select('discipline_id, time')
-        .eq('user_id', currentUser.id);
+        .from('times').select('discipline_id, time').eq('user_id', currentUser.id);
 
       const timeMap = {};
       (times || []).forEach(t => { timeMap[t.discipline_id] = t.time; });
@@ -193,21 +189,21 @@
         return;
       }
 
-      let html = '<table><thead><tr><th>Disziplin</th><th>Zeit (mm:ss,hh)</th><th>Speichern</th></tr></thead><tbody>';
+      let html = '<table><thead><tr><th>Disziplin</th><th>Typ</th><th>Zeit</th><th></th></tr></thead><tbody>';
       myDiscs.forEach(d => {
+        const disc = d.disciplines;
         const current = timeMap[d.discipline_id];
+        const typeBadge = disc.type === 'mannschaft'
+          ? '<span class="badge-mannschaft">Team</span>'
+          : '<span class="badge-einzel">Einzel</span>';
+
         html += `<tr>
-          <td>${d.disciplines.name}</td>
-          <td>
-            <input type="text"
-              id="time-${d.discipline_id}"
-              placeholder="1:23,45"
-              value="${current !== undefined && current !== null ? formatTime(current) : ''}"
-              style="width:120px; padding:6px 10px; border:1.5px solid var(--border); border-radius:6px; font-size:0.9rem;">
-          </td>
-          <td>
-            <button class="btn btn-sm btn-secondary" onclick="saveTime('${d.discipline_id}')">Speichern</button>
-          </td>
+          <td>${disc.name}</td>
+          <td>${typeBadge}</td>
+          <td><input type="text" id="time-${d.discipline_id}" placeholder="1:23,45"
+            value="${current != null ? formatTime(current) : ''}"
+            style="width:110px; padding:6px 10px; border:1.5px solid var(--border); border-radius:6px; font-size:0.9rem;"></td>
+          <td><button class="btn btn-sm btn-secondary" onclick="saveTime('${d.discipline_id}')">Speichern</button></td>
         </tr>`;
       });
       html += '</tbody></table>';
@@ -216,33 +212,18 @@
 
     async function saveTime(disciplineId) {
       const input = document.getElementById('time-' + disciplineId);
-      const val   = input.value.trim();
-
-      if (!val) {
-        alert('Bitte eine Zeit eingeben.');
-        return;
-      }
+      const val = input.value.trim();
+      if (!val) { alert('Bitte eine Zeit eingeben.'); return; }
       const seconds = parseTime(val);
-      if (seconds === null) {
-        alert('Ungültiges Format. Bitte nutze mm:ss,hh (z.B. 1:23,45)');
-        return;
-      }
+      if (seconds === null) { alert('Format: mm:ss,hh (z.B. 1:23,45)'); return; }
 
       const { error } = await db.from('times').upsert({
-        user_id:       currentUser.id,
-        discipline_id: disciplineId,
-        time:          seconds
+        user_id: currentUser.id, discipline_id: disciplineId, time: seconds
       }, { onConflict: 'user_id,discipline_id' });
 
-      const btn = document.querySelector(`button[onclick="saveTime('${disciplineId}')"]`);
-      if (error) {
-        btn.textContent = '✗ Fehler';
-        btn.style.color = 'var(--danger)';
-      } else {
-        btn.textContent = '✓ Gespeichert';
-        btn.style.color = 'var(--success)';
-      }
-      setTimeout(() => { btn.textContent = 'Speichern'; btn.style.color = ''; }, 2500);
+      const btn = event.target;
+      btn.textContent = error ? '✗' : '✓';
+      setTimeout(() => { btn.textContent = 'Speichern'; }, 2500);
     }
   </script>
 </body>
