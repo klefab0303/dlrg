@@ -1,5 +1,3 @@
-/* style.css */
-
 :root {
   --primary: #005f9e;
   --primary-dark: #003f6b;
@@ -24,6 +22,7 @@ body {
   min-height: 100vh;
 }
 
+/* ─── NAV ─── */
 nav {
   background: var(--primary);
   color: white;
@@ -35,34 +34,32 @@ nav {
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 nav .logo {
-  font-size: 1.2rem; font-weight: 700; letter-spacing: 0.5px;
-  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 1.2rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;
 }
-nav .logo span {
-  background: #e74c3c; color: white; padding: 2px 8px;
-  border-radius: 4px; font-size: 0.85rem;
-}
+nav .logo span { background: #e74c3c; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.85rem; }
 nav .nav-right { display: flex; align-items: center; gap: 1rem; }
 nav .nav-user { font-size: 0.9rem; opacity: 0.9; }
 nav button.logout-btn {
   background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4);
-  color: white; padding: 6px 16px; border-radius: var(--radius);
-  cursor: pointer; font-size: 0.85rem; transition: background 0.2s;
+  color: white; padding: 6px 16px; border-radius: var(--radius); cursor: pointer;
+  font-size: 0.85rem; transition: background 0.2s;
 }
 nav button.logout-btn:hover { background: rgba(255,255,255,0.25); }
 
+/* ─── LAYOUT ─── */
 .container { max-width: 1100px; margin: 2rem auto; padding: 0 1.5rem; }
 
+/* ─── CARDS ─── */
 .card {
-  background: white; border-radius: var(--radius);
-  box-shadow: var(--shadow); padding: 1.5rem; margin-bottom: 1.5rem;
+  background: white; border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 1.5rem; margin-bottom: 1.5rem;
 }
 .card h2 {
   font-size: 1.1rem; font-weight: 600; color: var(--primary);
-  margin-bottom: 1rem; padding-bottom: 0.6rem;
-  border-bottom: 2px solid var(--secondary);
+  margin-bottom: 1rem; padding-bottom: 0.6rem; border-bottom: 2px solid var(--secondary);
 }
 
+/* ─── LOGIN ─── */
 .login-page {
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
   background: linear-gradient(135deg, #003f6b 0%, #005f9e 60%, #0084c8 100%);
@@ -73,36 +70,37 @@ nav button.logout-btn:hover { background: rgba(255,255,255,0.25); }
 }
 .login-box .dlrg-header { text-align: center; margin-bottom: 2rem; }
 .login-box .dlrg-header .badge {
-  display: inline-block; background: #e74c3c; color: white;
-  font-weight: 700; font-size: 1.4rem; padding: 8px 20px;
-  border-radius: 6px; letter-spacing: 2px; margin-bottom: 0.8rem;
+  display: inline-block; background: #e74c3c; color: white; font-weight: 700;
+  font-size: 1.4rem; padding: 8px 20px; border-radius: 6px; letter-spacing: 2px; margin-bottom: 0.8rem;
 }
 .login-box .dlrg-header h1 { font-size: 1.1rem; color: var(--text); font-weight: 600; }
 .login-box .dlrg-header p { color: var(--text-light); font-size: 0.85rem; margin-top: 0.3rem; }
 
+/* ─── FORMS ─── */
 .form-group { margin-bottom: 1rem; }
 .form-group label {
-  display: block; font-size: 0.85rem; font-weight: 600;
-  color: var(--text-light); margin-bottom: 0.4rem;
-  text-transform: uppercase; letter-spacing: 0.5px;
+  display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-light);
+  margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.5px;
 }
 .form-group input, .form-group select {
   width: 100%; padding: 10px 14px; border: 1.5px solid var(--border);
-  border-radius: var(--radius); font-size: 0.95rem;
-  transition: border-color 0.2s; font-family: var(--font);
+  border-radius: var(--radius); font-size: 0.95rem; transition: border-color 0.2s; font-family: var(--font);
 }
 .form-group input:focus, .form-group select:focus {
-  outline: none; border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(0, 95, 158, 0.1);
+  outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0, 95, 158, 0.1);
 }
+.form-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+.form-row .form-group { flex: 1; min-width: 140px; }
 
+/* ─── BUTTONS ─── */
 .btn {
-  display: inline-block; padding: 10px 22px; border: none;
-  border-radius: var(--radius); font-size: 0.9rem; font-weight: 600;
-  cursor: pointer; transition: all 0.2s; font-family: var(--font); text-align: center;
+  display: inline-block; padding: 10px 22px; border: none; border-radius: var(--radius);
+  font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+  font-family: var(--font); text-align: center;
 }
-.btn-primary { background: var(--primary); color: white; width: 100%; }
+.btn-primary { background: var(--primary); color: white; }
 .btn-primary:hover { background: var(--primary-dark); }
+.btn-primary.full { width: 100%; }
 .btn-sm { padding: 5px 12px; font-size: 0.8rem; }
 .btn-danger { background: var(--danger); color: white; }
 .btn-danger:hover { background: #a93226; }
@@ -110,7 +108,9 @@ nav button.logout-btn:hover { background: rgba(255,255,255,0.25); }
 .btn-success:hover { background: #229954; }
 .btn-secondary { background: var(--secondary); color: var(--primary); border: 1.5px solid var(--border); }
 .btn-secondary:hover { background: #d0e8f7; }
+.btn-warning { background: var(--warning); color: white; }
 
+/* ─── ERRORS ─── */
 .error-msg {
   background: #fdecea; color: var(--danger); border: 1px solid #f5c6c2;
   border-radius: var(--radius); padding: 10px 14px; font-size: 0.85rem;
@@ -118,96 +118,77 @@ nav button.logout-btn:hover { background: rgba(255,255,255,0.25); }
 }
 .error-msg.visible { display: block; }
 
+/* ─── TABLES ─── */
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 th {
   background: var(--secondary); color: var(--primary); text-align: left;
-  padding: 10px 14px; font-size: 0.8rem; text-transform: uppercase;
-  letter-spacing: 0.5px; font-weight: 700;
+  padding: 10px 14px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;
 }
 td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: #fafcff; }
 
-.badge-ja { background: #d5f5e3; color: var(--success); padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; }
+/* ─── BADGES ─── */
+.badge-ja, .badge-aktiv { background: #d5f5e3; color: var(--success); padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; }
 .badge-nein { background: #fdecea; color: var(--danger); padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; }
-.badge-aktiv { background: #d5f5e3; color: var(--success); padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; }
 .badge-inaktiv { background: #f0f0f0; color: #888; padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; }
+.badge-einzel { background: #e8f4fd; color: #005f9e; padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; }
+.badge-mannschaft { background: #fef3e2; color: #d35400; padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; }
 
-/* NEU: Typ-Badges */
-.badge-einzel {
-  background: #e8f4fd; color: var(--primary); padding: 3px 10px;
-  border-radius: 20px; font-size: 0.75rem; font-weight: 700;
-}
-.badge-mannschaft {
-  background: #fef3e2; color: #e67e22; padding: 3px 10px;
-  border-radius: 20px; font-size: 0.75rem; font-weight: 700;
-}
-
-.stats-row {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem; margin-bottom: 1.5rem;
-}
-.stat-card {
-  background: white; border-radius: var(--radius); box-shadow: var(--shadow);
-  padding: 1.2rem; text-align: center; border-top: 3px solid var(--primary);
-}
+/* ─── STATS ─── */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.stat-card { background: white; border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.2rem; text-align: center; border-top: 3px solid var(--primary); }
 .stat-card .stat-num { font-size: 2rem; font-weight: 700; color: var(--primary); }
 .stat-card .stat-label { font-size: 0.8rem; color: var(--text-light); margin-top: 0.2rem; }
 
-.tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 2px solid var(--border); }
+/* ─── TABS ─── */
+.tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 2px solid var(--border); overflow-x: auto; }
 .tab-btn {
   padding: 10px 20px; border: none; background: none; color: var(--text-light);
-  font-size: 0.9rem; font-weight: 600; cursor: pointer;
-  border-bottom: 3px solid transparent; margin-bottom: -2px;
-  transition: all 0.2s; font-family: var(--font);
+  font-size: 0.9rem; font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent;
+  margin-bottom: -2px; transition: all 0.2s; font-family: var(--font); white-space: nowrap;
 }
 .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 
+/* ─── ANWESENHEIT RADIO ─── */
 .attendance-radio { display: flex; gap: 0.8rem; }
-.attendance-radio label {
-  display: flex; align-items: center; gap: 0.3rem;
-  cursor: pointer; font-size: 0.88rem; font-weight: 500;
-}
+.attendance-radio label { display: flex; align-items: center; gap: 0.3rem; cursor: pointer; font-size: 0.88rem; font-weight: 500; }
 
+/* ─── SPINNER ─── */
 .spinner { text-align: center; padding: 2rem; color: var(--text-light); font-size: 0.9rem; }
 
+/* ─── DISZIPLIN TAGS ─── */
 .disc-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.disc-tag {
-  background: var(--secondary); color: var(--primary); padding: 3px 10px;
-  border-radius: 20px; font-size: 0.78rem; font-weight: 600;
-  cursor: pointer; transition: background 0.2s;
-}
-.disc-tag:hover { background: #c8e2f5; }
+.disc-tag { background: var(--secondary); color: var(--primary); padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; }
 
-/* NEU: Disziplin-Beschreibung (Klappbar) */
-.disc-item {
-  border: 1px solid var(--border); border-radius: var(--radius);
-  margin-bottom: 0.5rem; overflow: hidden;
-}
+/* ─── DISC ITEM (klickbar) ─── */
+.disc-item { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.5rem; }
 .disc-item-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 14px; cursor: pointer; background: white;
-  transition: background 0.2s; gap: 0.6rem;
+  padding: 10px 14px; cursor: pointer; user-select: none;
 }
-.disc-item-header:hover { background: var(--secondary); }
-.disc-item-header .disc-name { font-weight: 600; font-size: 0.92rem; }
-.disc-item-header .disc-meta { display: flex; gap: 0.5rem; align-items: center; }
-.disc-item-header .disc-arrow {
-  transition: transform 0.2s; font-size: 0.8rem; color: var(--text-light);
-}
-.disc-item-header.open .disc-arrow { transform: rotate(90deg); }
-.disc-item-body {
-  display: none; padding: 0 14px 12px; font-size: 0.85rem;
-  color: var(--text-light); line-height: 1.5; border-top: 1px solid var(--border);
-}
-.disc-item-body.open { display: block; padding-top: 10px; }
+.disc-item-header:hover { background: #fafcff; }
+.disc-item-body { display: none; padding: 0 14px 12px; font-size: 0.88rem; color: var(--text-light); border-top: 1px solid var(--border); padding-top: 10px; }
+.disc-item-body.open { display: block; }
 
+/* ─── CHECKBOX-LIST ─── */
+.checkbox-list { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.5rem 0; }
+.checkbox-list label { display: flex; align-items: center; gap: 0.3rem; font-size: 0.88rem; cursor: pointer; background: var(--secondary); padding: 4px 10px; border-radius: 20px; }
+.checkbox-list label:hover { background: #d0e8f7; }
+
+/* ─── SECTION DIVIDER ─── */
+.section-title {
+  font-size: 0.95rem; font-weight: 700; color: var(--primary); margin: 1.5rem 0 0.8rem;
+  padding-bottom: 0.4rem; border-bottom: 2px solid var(--secondary);
+}
+
+/* ─── RESPONSIVE ─── */
 @media (max-width: 640px) {
   nav { padding: 0 1rem; }
   .container { padding: 0 0.75rem; margin: 1rem auto; }
   table { font-size: 0.78rem; }
   th, td { padding: 8px; }
-  .tabs { overflow-x: auto; }
+  .form-row { flex-direction: column; }
 }
