@@ -67,10 +67,3 @@ function confirmBtn(btn, success) {
   btn.style.color = success ? 'var(--success)' : 'var(--danger)';
   setTimeout(() => { btn.textContent = 'Speichern'; btn.style.color = ''; }, 2500);
 }
-function switchTab(btn, tabId) {
-  btn.closest('.tabs').querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  btn.classList.add('active');
-  const parent = btn.closest('main');
-  parent.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
-  parent.querySelector('#' + tabId).classList.add('active');
-}
