@@ -124,39 +124,55 @@ async function saveAtt(trainingId, btn) {
   confirmBtn(btn, !error);
 }
 
-// ─── DISZIPLINEN (getrennt) ────────────────────────────────
 async function loadDisciplines(type) {
-  const container = document.getElementById(type + '-list');
+  const container = document.getElementById(type === 'einzel' ? 'einzel-list' : 'mannschaft-list');
 
   if (type === 'einzel') {
-    // Nur Einzeldisziplinen laden (über Join mit disciplines filtern)
     const { data } = await db
       .from('swimmer_disciplines')
-      .select('discipline_id, disciplines(name, description, type)')
+      .select('discipline_id, disciplines(id, name, description, type)')
       .eq('swimmer_id', swimmerId);
 
     const filtered = (data || []).filter(d => d.disciplines.type === 'einzel');
+
+    // Zeiten laden
+    const { data: times } = await db.from('times').select('discipline_id,time').eq('user_id', currentUser.id);
+    const timeMap = {};
+    (times || []).forEach(t => { timeMap[t.discipline_id] = t.time; });
+
     if (filtered.length === 0) {
       container.innerHTML = '<p style="color:var(--text-light)">Keine Einzeldisziplinen zugewiesen.</p>';
       return;
     }
+
     let html = '';
     filtered.forEach(d => {
+      const t = timeMap[d.discipline_id];
       html += `<div class="disc-item">
         <div class="disc-item-header" onclick="toggleDisc(this)">
-          <span><strong>${d.disciplines.name}</strong></span>
+          <span><strong>${d.disciplines.name}</strong>
+            ${t != null ? '<span class="badge-einzel" style="margin-left:0.5rem">' + formatTime(t) + '</span>' : ''}
+          </span>
           <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
         </div>
-        <div class="disc-item-body">${d.disciplines.description || 'Keine Beschreibung.'}</div>
+        <div class="disc-item-body">
+          <p style="margin-bottom:0.8rem">${d.disciplines.description || 'Keine Beschreibung.'}</p>
+          <div style="display:flex;align-items:center;gap:0.5rem">
+            <input type="text" id="time-${d.discipline_id}" placeholder="1:23,45"
+              value="${t != null ? formatTime(t) : ''}"
+              style="width:120px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem;">
+            <button class="btn btn-sm btn-secondary" onclick="saveTime('${d.discipline_id}',this)">Speichern</button>
+          </div>
+        </div>
       </div>`;
     });
     container.innerHTML = html;
 
   } else {
-    // Mannschaft: Staffeln laden, in denen dieser Schwimmer eingeteilt ist
+    // Mannschaft: Staffeln laden
     const { data: positions } = await db
       .from('relay_positions')
-      .select('position, staffel_id, staffeln(id, discipline_id, disciplines(name, description))')
+      .select('position, time, staffel_id, staffeln(id, age_class, discipline_id, disciplines(name, description))')
       .eq('swimmer_id', swimmerId);
 
     if (!positions || positions.length === 0) {
@@ -164,53 +180,62 @@ async function loadDisciplines(type) {
       return;
     }
 
-    // Für jede Staffel alle Positionen laden
-    const staffelIds = positions.map(p => p.staffel_id);
-    const { data: allPos } = await db
+    // Alle Positionen dieser Staffeln laden für die Übersicht
+    const staffelIds = [...new Set(positions.map(p => p.staffel_id))];
+    const { data: allRP } = await db
       .from('relay_positions')
-      .select('staffel_id, position, swimmer_id, swimmers(name)')
+      .select('staffel_id, position, time, swimmer_id, swimmers(name)')
       .in('staffel_id', staffelIds)
       .order('position');
 
-    // Gruppieren nach staffel_id
-    const posMap = {};
-    (allPos || []).forEach(p => {
-      if (!posMap[p.staffel_id]) posMap[p.staffel_id] = [];
-      posMap[p.staffel_id].push(p);
+    const rpMap = {};
+    (allRP || []).forEach(r => {
+      if (!rpMap[r.staffel_id]) rpMap[r.staffel_id] = {};
+      rpMap[r.staffel_id][r.position] = r;
     });
 
     let html = '';
     positions.forEach(p => {
-      const discName = p.staffeln.disciplines.name;
-      const discDesc = p.staffeln.disciplines.description || '';
-      const teammates = posMap[p.staffel_id] || [];
+      const disc = p.staffeln.disciplines;
+      const akLabel = p.staffeln.age_class || '';
+      const stPositions = rpMap[p.staffel_id] || {};
+
+      // Gesamtzeit
+      let total = 0, allSet = true;
+      for (let i = 1; i <= 4; i++) {
+        if (stPositions[i] && stPositions[i].time != null) total += parseFloat(stPositions[i].time);
+        else allSet = false;
+      }
 
       html += `<div class="disc-item">
         <div class="disc-item-header" onclick="toggleDisc(this)">
-          <span><strong>${discName}</strong>
-            <span class="badge-mannschaft">Deine Position: ${p.position}. Teilstrecke</span>
+          <span><strong>${disc.name}</strong>
+            <span class="badge-mannschaft" style="margin-left:0.5rem">${akLabel.toUpperCase()}</span>
+            <span class="badge-einzel" style="margin-left:0.3rem">${p.position}. Teilstrecke</span>
+            ${allSet ? '<span style="margin-left:0.5rem;font-size:0.82rem;color:var(--text-light)">Gesamt: ' + formatTime(total) + '</span>' : ''}
           </span>
           <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
         </div>
         <div class="disc-item-body">
-          ${discDesc ? '<p style="margin-bottom:0.8rem;font-style:italic;color:var(--text-light)">' + discDesc + '</p>' : ''}
+          ${disc.description ? '<p style="margin-bottom:0.8rem;font-style:italic">' + disc.description + '</p>' : ''}
           <div class="staffel-overview">`;
-
-      for (let pos = 1; pos <= 4; pos++) {
-        const member = teammates.find(t => t.position === pos);
-        const name = member ? member.swimmers.name : '– nicht besetzt –';
-        const isMe = member && member.swimmer_id === swimmerId;
-        html += `<div class="staffel-member${isMe ? ' is-me' : ''}">
-          <span class="member-pos">${pos}.</span>
-          <span class="member-name">${name}</span>
+      for (let i = 1; i <= 4; i++) {
+        const rp = stPositions[i];
+        const isMe = rp && rp.swimmer_id === swimmerId;
+        const name = rp ? rp.swimmers.name : '–';
+        const timeStr = rp && rp.time != null ? formatTime(parseFloat(rp.time)) : '–';
+        html += `<div class="staffel-member ${isMe ? 'is-me' : ''}">
+          <span class="member-pos">${i}.</span>
+          <span>${name}</span>
+          <span style="margin-left:auto;font-weight:600">${timeStr}</span>
         </div>`;
       }
-
       html += `</div></div></div>`;
     });
     container.innerHTML = html;
   }
 }
+
 
 
 
