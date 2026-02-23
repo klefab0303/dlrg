@@ -241,42 +241,6 @@ async function loadDisciplines(type) {
 
 
 // ─── ZEITEN (getrennt nach Typ) ────────────────────────────
-async function loadTimes() {
-  const { data: myDiscs } = await db
-    .from('swimmer_disciplines')
-    .select('discipline_id, disciplines(id,name,type)')
-    .eq('swimmer_id', swimmerId);
-
-  const { data: times } = await db
-    .from('times').select('discipline_id,time').eq('user_id', currentUser.id);
-  const timeMap = {};
-  (times || []).forEach(t => { timeMap[t.discipline_id] = t.time; });
-
-  ['einzel', 'mannschaft'].forEach(type => {
-    const filtered = (myDiscs || []).filter(d => d.disciplines.type === type);
-    const container = document.getElementById('times-' + type);
-
-    if (filtered.length === 0) {
-      container.innerHTML = '<p style="color:var(--text-light)">Keine Disziplinen.</p>';
-      return;
-    }
-
-    let html = '<table><thead><tr><th>Disziplin</th><th>Zeit</th><th></th></tr></thead><tbody>';
-    filtered.forEach(d => {
-      const t = timeMap[d.discipline_id];
-      html += `<tr>
-        <td>${d.disciplines.name}</td>
-        <td><input type="text" id="time-${d.discipline_id}" placeholder="1:23,45"
-          value="${t != null ? formatTime(t) : ''}"
-          style="width:120px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem;"></td>
-        <td><button class="btn btn-sm btn-secondary" onclick="saveTime('${d.discipline_id}',this)">Speichern</button></td>
-      </tr>`;
-    });
-    html += '</tbody></table>';
-    container.innerHTML = html;
-  });
-}
-
 async function saveTime(discId, btn) {
   const val = document.getElementById('time-' + discId).value.trim();
   if (!val) { alert('Bitte Zeit eingeben.'); return; }
@@ -287,6 +251,7 @@ async function saveTime(discId, btn) {
   }, { onConflict: 'user_id,discipline_id' });
   confirmBtn(btn, !error);
 }
+
 </script>
 </body>
 </html>
