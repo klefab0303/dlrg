@@ -560,6 +560,7 @@ async function loadStaffeln() {
 async function saveStaffelPositions(staffelId, discId) {
   const grid = document.getElementById('staffel-grid-' + staffelId);
   const selects = grid.querySelectorAll('select');
+  const timeInputs = grid.querySelectorAll('input[data-timepos]');
 
   const chosen = [];
   let duplicate = false;
@@ -574,7 +575,15 @@ async function saveStaffelPositions(staffelId, discId) {
   const rows = [];
   selects.forEach(sel => {
     if (sel.value) {
-      rows.push({ staffel_id: staffelId, swimmer_id: sel.value, position: parseInt(sel.dataset.pos) });
+      const pos = parseInt(sel.dataset.pos);
+      const timeInput = grid.querySelector(`input[data-timepos="${pos}"]`);
+      const timeVal = timeInput ? parseTime(timeInput.value) : null;
+      rows.push({
+        staffel_id: staffelId,
+        swimmer_id: sel.value,
+        position: pos,
+        time: timeVal
+      });
     }
   });
   if (rows.length > 0) {
@@ -582,9 +591,8 @@ async function saveStaffelPositions(staffelId, discId) {
     if (error) { alert('Fehler: ' + error.message); return; }
   }
 
-  // Auch in swimmer_disciplines eintragen (damit Zeiten-Tab funktioniert)
+  // swimmer_disciplines aktualisieren
   await db.from('swimmer_disciplines').delete().eq('discipline_id', discId);
-  // Alle Schwimmer aus ALLEN Staffeln dieser Disziplin sammeln
   const { data: allStaffeln } = await db.from('staffeln').select('id').eq('discipline_id', discId);
   const staffelIds = (allStaffeln || []).map(s => s.id);
   if (staffelIds.length > 0) {
@@ -597,6 +605,7 @@ async function saveStaffelPositions(staffelId, discId) {
 
   loadStaffeln();
 }
+
 
 async function deleteStaffel(staffelId) {
   if (!confirm('Staffel wirklich löschen?')) return;
