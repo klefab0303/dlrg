@@ -613,54 +613,9 @@ async function deleteStaffel(staffelId) {
   loadStaffeln();
 }
 
-
-
-// ─── ZEITEN FÜR SCHWIMMER ─────────────────────────────────
-async function loadTimesForSwimmer() {
-  const swId = document.getElementById('select-swimmer-times').value;
-  const cE = document.getElementById('trainer-times-einzel');
-  const cM = document.getElementById('trainer-times-mannschaft');
-  if (!swId) { cE.innerHTML = ''; cM.innerHTML = ''; return; }
-
-  const swimmer = allSwimmers.find(s => s.id === swId);
-  if (!swimmer) return;
-
-  // Disziplinen + Zeiten laden
-  const [discRes, timeRes] = await Promise.all([
-    db.from('swimmer_disciplines').select('discipline_id,disciplines(id,name,type)').eq('swimmer_id', swId),
-    db.from('times').select('discipline_id,time').eq('user_id', swimmer.user_id),
-  ]);
-
-  const timeMap = {};
-  (timeRes.data || []).forEach(t => { timeMap[t.discipline_id] = t.time; });
-
-  ['einzel', 'mannschaft'].forEach(type => {
-    const filtered = (discRes.data || []).filter(d => d.disciplines.type === type);
-    const container = type === 'einzel' ? cE : cM;
-
-    if (filtered.length === 0) {
-      container.innerHTML = '<p style="color:var(--text-light)">Keine ' + (type === 'einzel' ? 'Einzel' : 'Mannschafts') + 'disziplinen zugewiesen.</p>';
-      return;
-    }
-
-    let html = '<table><thead><tr><th>Disziplin</th><th>Zeit</th><th></th></tr></thead><tbody>';
-    filtered.forEach(d => {
-      const t = timeMap[d.discipline_id];
-      html += `<tr>
-        <td>${d.disciplines.name}</td>
-        <td><input type="text" id="trt-${d.discipline_id}" placeholder="1:23,45"
-          value="${t != null ? formatTime(t) : ''}"
-          style="width:120px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem;"></td>
-        <td><button class="btn btn-sm btn-secondary" onclick="trainerSaveTime('${swimmer.user_id}','${d.discipline_id}',this)">Speichern</button></td>
-      </tr>`;
-    });
-    html += '</tbody></table>';
-    container.innerHTML = html;
-  });
-}
-
+// ─── TRAINER ZEIT SPEICHERN (Einzel) ──────────────────────
 async function trainerSaveTime(userId, discId, btn) {
-  const val = document.getElementById('trt-' + discId).value.trim();
+  const val = document.getElementById('trt-' + userId + '-' + discId).value.trim();
   if (!val) { alert('Bitte Zeit eingeben.'); return; }
   const sec = parseTime(val);
   if (sec === null) { alert('Format: mm:ss,hh'); return; }
@@ -669,6 +624,7 @@ async function trainerSaveTime(userId, discId, btn) {
   }, { onConflict: 'user_id,discipline_id' });
   confirmBtn(btn, !error);
 }
+
 
 // ─── KONTEN ────────────────────────────────────────────────
 async function loadAccounts() {
