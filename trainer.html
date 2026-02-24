@@ -285,7 +285,7 @@ async function loadAttendanceOverview() {
 }
 
 // ─── DISZIPLIN-ZUORDNUNG (Einzel mit Checkboxen) ──────────
-async function loadDiscAssignments_einzel() {
+async function _einzel() {
   const discs = allDisciplines.filter(d => d.type === 'einzel');
   const container = document.getElementById('einzel-disc-list');
 
@@ -325,17 +325,67 @@ async function loadDiscAssignments_einzel() {
   container.innerHTML = html;
 }
 
-async function saveDiscAssignment_einzel(discId) {
-  const container = document.getElementById('disc-cb-' + discId);
-  const checked = [...container.querySelectorAll('input[type=checkbox]:checked')].map(cb => cb.value);
+// ─── DISZIPLIN-ZUORDNUNG EINZEL (mit Zeiten) ──────────────
+async function loadDiscAssignments_einzel() {
+  const discs = allDisciplines.filter(d => d.type === 'einzel');
+  const container = document.getElementById('einzel-disc-list');
 
-  await db.from('swimmer_disciplines').delete().eq('discipline_id', discId);
-  if (checked.length > 0) {
-    const rows = checked.map(sid => ({ swimmer_id: sid, discipline_id: discId }));
-    await db.from('swimmer_disciplines').insert(rows);
+  if (discs.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-light)">Keine Einzeldisziplinen vorhanden.</p>';
+    return;
   }
-  loadDiscAssignments_einzel();
+
+  const { data: allAssign } = await db.from('swimmer_disciplines').select('swimmer_id,discipline_id');
+  const assignMap = {};
+  (allAssign || []).forEach(a => {
+    if (!assignMap[a.discipline_id]) assignMap[a.discipline_id] = new Set();
+    assignMap[a.discipline_id].add(a.swimmer_id);
+  });
+
+  // Alle Zeiten laden
+  const { data: allTimes } = await db.from('times').select('user_id,discipline_id,time');
+  const timeMap = {};
+  (allTimes || []).forEach(t => {
+    timeMap[t.user_id + '_' + t.discipline_id] = t.time;
+  });
+
+  let html = '';
+  discs.forEach(d => {
+    const assigned = assignMap[d.id] || new Set();
+    html += `<div class="disc-item">
+      <div class="disc-item-header" onclick="toggleDisc(this)">
+        <span><strong>${d.name}</strong>
+          <span style="font-size:0.8rem;color:var(--text-light);margin-left:0.5rem">(${assigned.size} Schwimmer)</span>
+        </span>
+        <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
+      </div>
+      <div class="disc-item-body">
+        ${d.description ? '<p style="margin-bottom:0.8rem;font-style:italic">' + d.description + '</p>' : ''}
+        <div class="checkbox-list" id="disc-cb-${d.id}">`;
+    allSwimmers.forEach(s => {
+      html += `<label><input type="checkbox" value="${s.id}" ${assigned.has(s.id) ? 'checked' : ''}> ${s.name} (${s.age_class})</label>`;
+    });
+    html += `</div>
+        <button class="btn btn-sm btn-primary" style="margin-top:0.6rem" onclick="saveDiscAssignment_einzel('${d.id}')">Zuordnung speichern</button>
+
+        ${assigned.size > 0 ? (() => {
+          let tbl = '<div class="section-title" style="margin-top:1rem">Zeiten</div>';
+          tbl += '<table><thead><tr><th>Schwimmer</th><th>AK</th><th>Zeit</th><th></th></tr></thead><tbody>';
+          allSwimmers.filter(s => assigned.has(s.id)).forEach(s => {
+            const t = timeMap[s.user_id + '_' + d.id];
+            tbl += '<tr><td>' + s.name + '</td><td>' + s.age_class + '</td>';
+            tbl += '<td><input type="text" id="trt-' + s.user_id + '-' + d.id + '" placeholder="1:23,45" value="' + (t != null ? formatTime(t) : '') + '" style="width:110px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:0.85rem;"></td>';
+            tbl += '<td><button class="btn btn-sm btn-secondary" onclick="trainerSaveTime(\'' + s.user_id + '\',\'' + d.id + '\',this)">Speichern</button></td></tr>';
+          });
+          tbl += '</tbody></table>';
+          return tbl;
+        })() : ''}
+      </div>
+    </div>`;
+  });
+  container.innerHTML = html;
 }
+
 
 // ─── STAFFEL-VERWALTUNG (Mannschaft) ──────────────────────
 function fillStaffelDiscSelect() {
