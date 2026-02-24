@@ -426,13 +426,96 @@ async function loadStaffeln() {
 
   const { data: staffeln } = await db
     .from('staffeln')
-    .select('id, discipline_id, disciplines(name)')
+    .select('id, discipline_id, age_class, disciplines(name, description)')
     .order('created_at');
 
   if (!staffeln || staffeln.length === 0) {
     container.innerHTML = '<p style="color:var(--text-light)">Noch keine Staffeln angelegt.</p>';
     return;
   }
+
+  const { data: allPos } = await db.from('relay_positions').select('staffel_id,swimmer_id,position,time');
+  const posMap = {};
+  (allPos || []).forEach(p => {
+    if (!posMap[p.staffel_id]) posMap[p.staffel_id] = {};
+    posMap[p.staffel_id][p.position] = p;
+  });
+
+  // Nach Disziplin gruppieren
+  const grouped = {};
+  staffeln.forEach(st => {
+    const key = st.discipline_id;
+    if (!grouped[key]) grouped[key] = { disc: st.disciplines, staffeln: [] };
+    grouped[key].staffeln.push(st);
+  });
+
+  let html = '';
+  Object.keys(grouped).forEach(discId => {
+    const g = grouped[discId];
+    html += `<div class="disc-item">
+      <div class="disc-item-header" onclick="toggleDisc(this)">
+        <span><strong>${g.disc.name}</strong>
+          <span style="font-size:0.8rem;color:var(--text-light);margin-left:0.5rem">(${g.staffeln.length} Staffel${g.staffeln.length > 1 ? 'n' : ''})</span>
+        </span>
+        <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
+      </div>
+      <div class="disc-item-body">
+        ${g.disc.description ? '<p style="margin-bottom:0.8rem;font-style:italic">' + g.disc.description + '</p>' : ''}`;
+
+    g.staffeln.forEach(st => {
+      const positions = posMap[st.id] || {};
+      const filledCount = Object.keys(positions).length;
+      const akLabel = AK_LABELS[st.age_class] || st.age_class;
+
+      // Gesamtzeit berechnen
+      let totalTime = 0;
+      let allTimesSet = true;
+      for (let i = 1; i <= 4; i++) {
+        if (positions[i] && positions[i].time != null) {
+          totalTime += parseFloat(positions[i].time);
+        } else {
+          allTimesSet = false;
+        }
+      }
+
+      const eligible = getEligibleSwimmers(st.age_class);
+
+      html += `<div class="staffel-card">
+        <div class="staffel-header">
+          <span><span class="badge-mannschaft">${akLabel}</span></span>
+          <span style="font-size:0.82rem;color:var(--text-light)">${filledCount}/4 besetzt${allTimesSet && filledCount === 4 ? ' · Gesamt: ' + formatTime(totalTime) : ''}</span>
+          <button class="btn btn-sm btn-danger" onclick="deleteStaffel('${st.id}')">Löschen</button>
+        </div>
+        <div class="staffel-grid" id="staffel-grid-${st.id}">`;
+
+      for (let pos = 1; pos <= 4; pos++) {
+        const currentPos = positions[pos];
+        const currentSwimmer = currentPos ? currentPos.swimmer_id : '';
+        const currentTime = currentPos && currentPos.time != null ? formatTime(parseFloat(currentPos.time)) : '';
+
+        html += `<div class="staffel-slot">
+          <label>${pos}. Teilstrecke</label>
+          <select data-pos="${pos}">
+            <option value="">– nicht besetzt –</option>`;
+        eligible.forEach(s => {
+          html += `<option value="${s.id}" ${s.id === currentSwimmer ? 'selected' : ''}>${s.name} (${s.age_class})</option>`;
+        });
+        html += `</select>
+          <input type="text" data-timepos="${pos}" placeholder="0:00,00" value="${currentTime}"
+            style="margin-top:0.3rem;width:100%;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:0.85rem;">
+        </div>`;
+      }
+
+      html += `</div>
+        <button class="btn btn-sm btn-primary" style="margin-top:0.6rem" onclick="saveStaffelPositions('${st.id}','${st.discipline_id}')">Speichern</button>
+      </div>`;
+    });
+
+    html += `</div></div>`;
+  });
+  container.innerHTML = html;
+}
+
 
   // Positionen laden
   const { data: allPos } = await db.from('relay_positions').select('staffel_id,swimmer_id,position');
