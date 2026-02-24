@@ -133,7 +133,7 @@ let allDisciplines = [];
 
   // Alles parallel laden
   const [swRes, trRes, diRes] = await Promise.all([
-    db.from('swimmers').select('id,name,year,user_id').order('name'),
+    db.from('swimmers').select('id,name,year,user_id,age_class').order('name'),
     db.from('trainings').select('id,date,start_time,end_time').order('date'),
     db.from('disciplines').select('id,name,type,description').order('name'),
   ]);
