@@ -516,47 +516,6 @@ async function loadStaffeln() {
   container.innerHTML = html;
 }
 
-
-  // Positionen laden
-  const { data: allPos } = await db.from('relay_positions').select('staffel_id,swimmer_id,position');
-  const posMap = {};
-  (allPos || []).forEach(p => {
-    if (!posMap[p.staffel_id]) posMap[p.staffel_id] = {};
-    posMap[p.staffel_id][p.position] = p.swimmer_id;
-  });
-
-  let html = '';
-  staffeln.forEach(st => {
-    const positions = posMap[st.id] || {};
-    const filledCount = Object.keys(positions).length;
-
-    html += `<div class="staffel-card">
-      <div class="staffel-header">
-        <strong>${st.disciplines.name}</strong>
-        <span style="font-size:0.82rem;color:var(--text-light)">${filledCount}/4 besetzt</span>
-        <button class="btn btn-sm btn-danger" onclick="deleteStaffel('${st.id}')">Löschen</button>
-      </div>
-      <div class="staffel-grid" id="staffel-grid-${st.id}">`;
-
-    for (let pos = 1; pos <= 4; pos++) {
-      const currentSwimmer = positions[pos] || '';
-      html += `<div class="staffel-slot">
-        <label>${pos}. Teilstrecke</label>
-        <select data-pos="${pos}">
-          <option value="">– nicht besetzt –</option>`;
-      allSwimmers.forEach(s => {
-        html += `<option value="${s.id}" ${s.id === currentSwimmer ? 'selected' : ''}>${s.name}</option>`;
-      });
-      html += `</select></div>`;
-    }
-
-    html += `</div>
-      <button class="btn btn-sm btn-primary" style="margin-top:0.6rem" onclick="saveStaffelPositions('${st.id}','${st.discipline_id}')">Speichern</button>
-    </div>`;
-  });
-  container.innerHTML = html;
-}
-
 async function saveStaffelPositions(staffelId, discId) {
   const grid = document.getElementById('staffel-grid-' + staffelId);
   const selects = grid.querySelectorAll('select');
