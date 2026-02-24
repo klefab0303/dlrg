@@ -284,47 +284,6 @@ async function loadAttendanceOverview() {
   c.innerHTML = html;
 }
 
-// ─── DISZIPLIN-ZUORDNUNG (Einzel mit Checkboxen) ──────────
-async function _einzel() {
-  const discs = allDisciplines.filter(d => d.type === 'einzel');
-  const container = document.getElementById('einzel-disc-list');
-
-  if (discs.length === 0) {
-    container.innerHTML = '<p style="color:var(--text-light)">Keine Einzeldisziplinen vorhanden.</p>';
-    return;
-  }
-
-  const { data: allAssign } = await db.from('swimmer_disciplines').select('swimmer_id,discipline_id');
-  const assignMap = {};
-  (allAssign || []).forEach(a => {
-    if (!assignMap[a.discipline_id]) assignMap[a.discipline_id] = new Set();
-    assignMap[a.discipline_id].add(a.swimmer_id);
-  });
-
-  let html = '';
-  discs.forEach(d => {
-    const assigned = assignMap[d.id] || new Set();
-    html += `<div class="disc-item">
-      <div class="disc-item-header" onclick="toggleDisc(this)">
-        <span><strong>${d.name}</strong>
-          <span style="font-size:0.8rem;color:var(--text-light);margin-left:0.5rem">(${assigned.size} Schwimmer)</span>
-        </span>
-        <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
-      </div>
-      <div class="disc-item-body">
-        ${d.description ? '<p style="margin-bottom:0.8rem;font-style:italic">' + d.description + '</p>' : ''}
-        <div class="checkbox-list" id="disc-cb-${d.id}">`;
-    allSwimmers.forEach(s => {
-      html += `<label><input type="checkbox" value="${s.id}" ${assigned.has(s.id) ? 'checked' : ''}> ${s.name}</label>`;
-    });
-    html += `</div>
-        <button class="btn btn-sm btn-primary" style="margin-top:0.6rem" onclick="saveDiscAssignment_einzel('${d.id}')">Zuordnung speichern</button>
-      </div>
-    </div>`;
-  });
-  container.innerHTML = html;
-}
-
 // ─── DISZIPLIN-ZUORDNUNG EINZEL (mit Zeiten) ──────────────
 async function loadDiscAssignments_einzel() {
   const discs = allDisciplines.filter(d => d.type === 'einzel');
@@ -385,6 +344,21 @@ async function loadDiscAssignments_einzel() {
   });
   container.innerHTML = html;
 }
+
+  async function saveDiscAssignment_einzel(discId) {
+  const container = document.getElementById('disc-cb-' + discId);
+  const checked = [...container.querySelectorAll('input[type=checkbox]:checked')].map(cb => cb.value);
+
+  // Alte löschen, neue einfügen
+  await db.from('swimmer_disciplines').delete().eq('discipline_id', discId);
+  if (checked.length > 0) {
+    const rows = checked.map(sid => ({ swimmer_id: sid, discipline_id: discId }));
+    await db.from('swimmer_disciplines').insert(rows);
+  }
+  alert('Zuordnung gespeichert (' + checked.length + ' Schwimmer).');
+  loadDiscAssignments_einzel(); // Neu laden für aktualisierte Zeitentabelle
+}
+
 
 // ─── STAFFEL-VERWALTUNG (Mannschaft) ──────────────────────
 const AK_ORDER = ['ak12','ak13/14','ak15/16','ak17/18','offene','ak25','ak30','ak35','ak40','ak45','ak50','ak55','ak60'];
