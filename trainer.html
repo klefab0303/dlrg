@@ -73,7 +73,7 @@
     </div>
   </div>
 
-  <!-- ═══ TAB: MANNSCHAFT-DISZIPLINEN ═══ -->
+    <!-- ═══ TAB: MANNSCHAFT-DISZIPLINEN ═══ -->
   <div class="tab-content" id="tab-mannschaft">
     <div class="card">
       <h2>Staffeln verwalten</h2>
@@ -84,11 +84,30 @@
             <option value="">– Disziplin wählen –</option>
           </select>
         </div>
+        <div class="form-group" style="flex:1">
+          <label for="staffel-ak-select">Altersklasse</label>
+          <select id="staffel-ak-select">
+            <option value="ak12">AK 12</option>
+            <option value="ak13/14">AK 13/14</option>
+            <option value="ak15/16">AK 15/16</option>
+            <option value="ak17/18">AK 17/18</option>
+            <option value="offene" selected>Offene</option>
+            <option value="ak25">AK 25</option>
+            <option value="ak30">AK 30</option>
+            <option value="ak35">AK 35</option>
+            <option value="ak40">AK 40</option>
+            <option value="ak45">AK 45</option>
+            <option value="ak50">AK 50</option>
+            <option value="ak55">AK 55</option>
+            <option value="ak60">AK 60</option>
+          </select>
+        </div>
         <div><button class="btn btn-primary" onclick="addStaffel()">Staffel hinzufügen</button></div>
       </div>
       <div id="staffel-list"><div class="spinner">Lädt …</div></div>
     </div>
   </div>
+
 
 
   <!-- ═══ TAB: ZEITEN ═══ -->
