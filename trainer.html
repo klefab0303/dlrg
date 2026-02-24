@@ -251,17 +251,6 @@ function fillTrainingSelect() {
   });
 }
 
-function fillSwimmerSelect() {
-  const sel = document.getElementById('select-swimmer-times');
-  sel.innerHTML = '<option value="">– bitte wählen –</option>';
-  allSwimmers.forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s.id;
-    opt.textContent = s.name + ' (' + s.year + ')';
-    sel.appendChild(opt);
-  });
-}
-
 // ─── ANWESENHEIT ───────────────────────────────────────────
 async function loadAttendanceOverview() {
   const trainingId = document.getElementById('select-training').value;
