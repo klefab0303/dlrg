@@ -386,8 +386,18 @@ async function loadDiscAssignments_einzel() {
   container.innerHTML = html;
 }
 
-
 // ─── STAFFEL-VERWALTUNG (Mannschaft) ──────────────────────
+const AK_ORDER = ['ak12','ak13/14','ak15/16','ak17/18','offene','ak25','ak30','ak35','ak40','ak45','ak50','ak55','ak60'];
+const AK_LABELS = {'ak12':'AK 12','ak13/14':'AK 13/14','ak15/16':'AK 15/16','ak17/18':'AK 17/18','offene':'Offene','ak25':'AK 25','ak30':'AK 30','ak35':'AK 35','ak40':'AK 40','ak45':'AK 45','ak50':'AK 50','ak55':'AK 55','ak60':'AK 60'};
+
+function getEligibleSwimmers(staffelAk) {
+  const idx = AK_ORDER.indexOf(staffelAk);
+  return allSwimmers.filter(s => {
+    const sIdx = AK_ORDER.indexOf(s.age_class);
+    return sIdx === idx || sIdx === idx - 1; // eigene AK oder eine drunter
+  });
+}
+
 function fillStaffelDiscSelect() {
   const sel = document.getElementById('staffel-disc-select');
   sel.innerHTML = '<option value="">– Disziplin wählen –</option>';
@@ -401,12 +411,14 @@ function fillStaffelDiscSelect() {
 
 async function addStaffel() {
   const discId = document.getElementById('staffel-disc-select').value;
+  const ak = document.getElementById('staffel-ak-select').value;
   if (!discId) { alert('Bitte zuerst eine Disziplin wählen.'); return; }
 
-  const { error } = await db.from('staffeln').insert({ discipline_id: discId });
+  const { error } = await db.from('staffeln').insert({ discipline_id: discId, age_class: ak });
   if (error) { alert('Fehler: ' + error.message); return; }
   loadStaffeln();
 }
+
 
 async function loadStaffeln() {
   const container = document.getElementById('staffel-list');
