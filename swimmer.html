@@ -141,53 +141,130 @@ async function loadDisciplines(type) {
   const container = document.getElementById(type + '-list');
 
   if (type === 'einzel') {
-  const { data } = await db
-    .from('swimmer_disciplines')
-    .select('discipline_id, disciplines(name, description, type)')
-    .eq('swimmer_id', swimmerId);
+    const { data } = await db
+      .from('swimmer_disciplines')
+      .select('discipline_id, disciplines(name, description, type)')
+      .eq('swimmer_id', swimmerId);
 
-  const filtered = (data || []).filter(d => d.disciplines.type === 'einzel');
-  if (filtered.length === 0) {
-    container.innerHTML = '<p style="color:var(--text-light)">Keine Einzeldisziplinen zugewiesen.</p>';
-    return;
-  }
+    const filtered = (data || []).filter(d => d.disciplines.type === 'einzel');
+    if (filtered.length === 0) {
+      container.innerHTML = '<p style="color:var(--text-light)">Keine Einzeldisziplinen zugewiesen.</p>';
+      return;
+    }
 
-  // Letzte Zeiten laden
-  const { data: times } = await db
-    .from('times')
-    .select('discipline_id, time, created_at')
-    .eq('user_id', currentUser.id)
-    .order('created_at', { ascending: false });
+    const { data: times } = await db
+      .from('times')
+      .select('discipline_id, time, created_at')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false });
 
-  // Gruppieren: neueste zuerst
-  const timesByDisc = {};
-  (times || []).forEach(t => {
-    if (!timesByDisc[t.discipline_id]) timesByDisc[t.discipline_id] = [];
-    timesByDisc[t.discipline_id].push(t);
-  });
+    const timesByDisc = {};
+    (times || []).forEach(t => {
+      if (!timesByDisc[t.discipline_id]) timesByDisc[t.discipline_id] = [];
+      timesByDisc[t.discipline_id].push(t);
+    });
 
-  let html = '';
-  filtered.forEach(d => {
-    const discTimes = timesByDisc[d.discipline_id] || [];
-    const latest = discTimes.length > 0 ? formatTime(discTimes[0].time) : '–';
+    let html = '';
+    filtered.forEach(d => {
+      const discTimes = timesByDisc[d.discipline_id] || [];
+      const latest = discTimes.length > 0 ? formatTime(discTimes[0].time) : '–';
 
-    html += `<div class="disc-item">
-      <div class="disc-item-header" onclick="toggleDisc(this)">
-        <span><strong>${d.disciplines.name}</strong>
-          <span style="font-size:0.82rem;color:var(--text-light);margin-left:0.5rem">Beste: ${latest}</span>
-        </span>
-        <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
-      </div>
-      <div class="disc-item-body">
-        ${d.disciplines.description ? '<p style="margin-bottom:0.8rem;font-style:italic">' + d.disciplines.description + '</p>' : ''}
-        ${discTimes.length > 0 ? '<div class="section-title" style="margin-top:0.5rem;font-size:0.82rem">Zeiten-Historie</div><table><thead><tr><th>Datum</th><th>Zeit</th></tr></thead><tbody>' + discTimes.map(t => `<tr><td>${formatDate(t.created_at)}</td><td>${formatTime(t.time)}</td></tr>`).join('') + '</tbody></table>' : '<p style="color:var(--text-light);font-size:0.85rem">Noch keine Zeiten erfasst.</p>'}
-      </div>
-    </div>`;
-  });
-  container.innerHTML = html;
+      html += `<div class="disc-item">
+        <div class="disc-item-header" onclick="toggleDisc(this)">
+          <span><strong>${d.disciplines.name}</strong>
+            <span style="font-size:0.82rem;color:var(--text-light);margin-left:0.5rem">Letzte: ${latest}</span>
+          </span>
+          <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
+        </div>
+        <div class="disc-item-body">
+          ${d.disciplines.description ? '<p style="margin-bottom:0.8rem;font-style:italic">' + d.disciplines.description + '</p>' : ''}
+          ${discTimes.length > 0 ? '<div class="section-title" style="margin-top:0.5rem;font-size:0.82rem">Zeiten-Historie</div><table><thead><tr><th>Datum</th><th>Zeit</th></tr></thead><tbody>' + discTimes.map(t => `<tr><td>${formatDate(t.created_at)}</td><td>${formatTime(t.time)}</td></tr>`).join('') + '</tbody></table>' : '<p style="color:var(--text-light);font-size:0.85rem">Noch keine Zeiten erfasst.</p>'}
+        </div>
+      </div>`;
+    });
+    container.innerHTML = html;
 
+  } else if (type === 'mannschaft') {
+    // Alle Staffeln laden, in denen dieser Schwimmer eine Position hat
+    const { data: myPositions } = await db
+      .from('relay_positions')
+      .select('staffel_id, position, leg_name')
+      .eq('swimmer_id', swimmerId);
+
+    if (!myPositions || myPositions.length === 0) {
+      container.innerHTML = '<p style="color:var(--text-light)">Du bist in keiner Staffel eingeteilt.</p>';
+      return;
+    }
+
+    const staffelIds = myPositions.map(p => p.staffel_id);
+
+    // Staffel-Infos + alle Positionen laden
+    const [staffelRes, allPosRes, swimmerRes] = await Promise.all([
+      db.from('staffeln').select('id, discipline_id, disciplines(name)').in('id', staffelIds),
+      db.from('relay_positions').select('staffel_id, swimmer_id, position, leg_name').in('staffel_id', staffelIds).order('position'),
+      db.from('swimmers').select('id, name'),
+    ]);
+
+    const swimmerMap = {};
+    (swimmerRes.data || []).forEach(s => { swimmerMap[s.id] = s.name; });
+
+    const myPosMap = {};
+    myPositions.forEach(p => { myPosMap[p.staffel_id] = p.position; });
+
+    // Nach Disziplin gruppieren
+    const grouped = {};
+    (staffelRes.data || []).forEach(st => {
+      const key = st.discipline_id;
+      if (!grouped[key]) grouped[key] = { name: st.disciplines.name, staffeln: [] };
+      grouped[key].staffeln.push(st);
+    });
+
+    // Positionen nach Staffel gruppieren
+    const posByStaffel = {};
+    (allPosRes.data || []).forEach(p => {
+      if (!posByStaffel[p.staffel_id]) posByStaffel[p.staffel_id] = [];
+      posByStaffel[p.staffel_id].push(p);
+    });
+
+    let html = '';
+    Object.entries(grouped).forEach(([discId, group]) => {
+      html += `<div class="disc-item">
+        <div class="disc-item-header" onclick="toggleDisc(this)">
+          <span><strong>${group.name}</strong>
+            <span style="font-size:0.82rem;color:var(--text-light);margin-left:0.5rem">(${group.staffeln.length} Staffel${group.staffeln.length > 1 ? 'n' : ''})</span>
+          </span>
+          <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
+        </div>
+        <div class="disc-item-body">`;
+
+      group.staffeln.forEach((st, idx) => {
+        const positions = posByStaffel[st.id] || [];
+        const myPos = myPosMap[st.id];
+
+        html += `<div class="staffel-card" style="margin-bottom:0.8rem">
+          <div class="staffel-header"><strong>Staffel ${idx + 1}</strong></div>
+          <table><thead><tr><th>Pos.</th><th>Teilstrecke</th><th>Schwimmer</th></tr></thead><tbody>`;
+
+        for (let pos = 1; pos <= 4; pos++) {
+          const p = positions.find(x => x.position === pos);
+          const isMe = pos === myPos;
+          const style = isMe ? 'background:var(--primary-light,#e3f0ff);font-weight:600' : '';
+          html += `<tr style="${style}">
+            <td>${pos}</td>
+            <td>${p ? (p.leg_name || '–') : '–'}</td>
+            <td>${p ? (swimmerMap[p.swimmer_id] || '–') : '– nicht besetzt –'}${isMe ? ' ⭐' : ''}</td>
+          </tr>`;
+        }
+
+        html += '</tbody></table></div>';
+      });
+
+      html += '</div></div>';
+    });
+    container.innerHTML = html;
   }
 }
+
 
 
 
@@ -200,9 +277,15 @@ async function loadTimes() {
     .eq('swimmer_id', swimmerId);
 
   const { data: times } = await db
-    .from('times').select('discipline_id,time').eq('user_id', currentUser.id);
-  const timeMap = {};
-  (times || []).forEach(t => { timeMap[t.discipline_id] = t.time; });
+    .from('times').select('discipline_id,time,created_at')
+    .eq('user_id', currentUser.id)
+    .order('created_at', { ascending: false });
+
+  const timesByDisc = {};
+  (times || []).forEach(t => {
+    if (!timesByDisc[t.discipline_id]) timesByDisc[t.discipline_id] = [];
+    timesByDisc[t.discipline_id].push(t);
+  });
 
   ['einzel', 'mannschaft'].forEach(type => {
     const filtered = (myDiscs || []).filter(d => d.disciplines.type === type);
@@ -213,21 +296,32 @@ async function loadTimes() {
       return;
     }
 
-    let html = '<table><thead><tr><th>Disziplin</th><th>Zeit</th><th></th></tr></thead><tbody>';
+    let html = '';
     filtered.forEach(d => {
-      const t = timeMap[d.discipline_id];
-      html += `<tr>
-        <td>${d.disciplines.name}</td>
-        <td><input type="text" id="time-${d.discipline_id}" placeholder="1:23,45"
-          value="${t != null ? formatTime(t) : ''}"
-          style="width:120px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem;"></td>
-        <td><button class="btn btn-sm btn-secondary" onclick="saveTime('${d.discipline_id}',this)">Speichern</button></td>
-      </tr>`;
+      const discTimes = timesByDisc[d.discipline_id] || [];
+      const latest = discTimes.length > 0 ? formatTime(discTimes[0].time) : '–';
+
+      html += `<div class="disc-item">
+        <div class="disc-item-header" onclick="toggleDisc(this)">
+          <span><strong>${d.disciplines.name}</strong>
+            <span style="font-size:0.82rem;color:var(--text-light);margin-left:0.5rem">Letzte: ${latest}</span>
+          </span>
+          <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
+        </div>
+        <div class="disc-item-body">
+          <div style="margin-bottom:0.8rem">
+            <input type="text" id="time-${d.discipline_id}" placeholder="1:23,45"
+              style="width:120px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem;margin-right:0.5rem;">
+            <button class="btn btn-sm btn-secondary" onclick="saveTime('${d.discipline_id}',this)">Speichern</button>
+          </div>
+          ${discTimes.length > 0 ? '<div class="section-title" style="font-size:0.82rem">Historie</div><table><thead><tr><th>Datum</th><th>Zeit</th></tr></thead><tbody>' + discTimes.map(t => `<tr><td>${formatDate(t.created_at)}</td><td>${formatTime(t.time)}</td></tr>`).join('') + '</tbody></table>' : '<p style="color:var(--text-light);font-size:0.85rem">Noch keine Zeiten.</p>'}
+        </div>
+      </div>`;
     });
-    html += '</tbody></table>';
     container.innerHTML = html;
   });
 }
+
 
 async function saveTime(discId, btn) {
   const val = document.getElementById('time-' + discId).value.trim();
