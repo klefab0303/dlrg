@@ -544,9 +544,9 @@ async function trainerSaveTime(userId, discId, btn) {
   if (!val) { alert('Bitte Zeit eingeben.'); return; }
   const sec = parseTime(val);
   if (sec === null) { alert('Format: mm:ss,hh'); return; }
-  const { error } = await db.from('times').upsert({
+  const { error } = await db.from('times').insert({
     user_id: userId, discipline_id: discId, time: sec
-  }, { onConflict: 'user_id,discipline_id' });
+  });
   confirmBtn(btn, !error);
 }
 
