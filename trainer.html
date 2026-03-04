@@ -383,12 +383,13 @@ async function loadStaffeln() {
     return;
   }
 
-  const { data: allPos } = await db.from('relay_positions').select('staffel_id,swimmer_id,position');
+  const { data: allPos } = await db.from('relay_positions').select('staffel_id,swimmer_id,position,leg_name');
   const posMap = {};
   (allPos || []).forEach(p => {
     if (!posMap[p.staffel_id]) posMap[p.staffel_id] = {};
-    posMap[p.staffel_id][p.position] = p.swimmer_id;
+    posMap[p.staffel_id][p.position] = { swimmer_id: p.swimmer_id, leg_name: p.leg_name };
   });
+
 
   // Nach Disziplin gruppieren
   const grouped = {};
@@ -409,7 +410,6 @@ async function loadStaffeln() {
         <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
       </div>
       <div class="disc-item-body">
-        ${group.desc ? '<p style="margin-bottom:0.8rem;font-style:italic;color:var(--text-light)">' + group.desc + '</p>' : ''}`;
 
     group.staffeln.forEach((st, idx) => {
       const positions = posMap[st.id] || {};
@@ -424,9 +424,12 @@ async function loadStaffeln() {
         <div class="staffel-grid" id="staffel-grid-${st.id}">`;
 
       for (let pos = 1; pos <= 4; pos++) {
-        const currentSwimmer = positions[pos] || '';
+        const currentSwimmer = positions[pos] ? positions[pos].swimmer_id : '';
+        const currentLeg = positions[pos] ? (positions[pos].leg_name || '') : '';
         html += `<div class="staffel-slot">
           <label>${pos}. Teilstrecke</label>
+          <input type="text" data-legpos="${pos}" placeholder="z.B. 25m Rücken" value="${currentLeg}"
+            style="width:100%;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:0.85rem;margin-bottom:4px;">
           <select data-pos="${pos}">
             <option value="">– nicht besetzt –</option>`;
         allSwimmers.forEach(s => {
@@ -434,6 +437,7 @@ async function loadStaffeln() {
         });
         html += `</select></div>`;
       }
+
 
       html += `</div>
         <button class="btn btn-sm btn-primary" style="margin-top:0.6rem" onclick="saveStaffelPositions('${st.id}','${st.discipline_id}')">Speichern</button>
@@ -449,6 +453,7 @@ async function loadStaffeln() {
 async function saveStaffelPositions(staffelId, discId) {
   const grid = document.getElementById('staffel-grid-' + staffelId);
   const selects = grid.querySelectorAll('select');
+  const legInputs = grid.querySelectorAll('input[data-legpos]');
 
   const chosen = [];
   let duplicate = false;
@@ -460,10 +465,18 @@ async function saveStaffelPositions(staffelId, discId) {
 
   await db.from('relay_positions').delete().eq('staffel_id', staffelId);
 
+  const legMap = {};
+  legInputs.forEach(inp => { legMap[inp.dataset.legpos] = inp.value.trim(); });
+
   const rows = [];
   selects.forEach(sel => {
     if (sel.value) {
-      rows.push({ staffel_id: staffelId, swimmer_id: sel.value, position: parseInt(sel.dataset.pos) });
+      rows.push({
+        staffel_id: staffelId,
+        swimmer_id: sel.value,
+        position: parseInt(sel.dataset.pos),
+        leg_name: legMap[sel.dataset.pos] || ''
+      });
     }
   });
   if (rows.length > 0) {
@@ -471,9 +484,8 @@ async function saveStaffelPositions(staffelId, discId) {
     if (error) { alert('Fehler: ' + error.message); return; }
   }
 
-  // Auch in swimmer_disciplines eintragen (damit Zeiten-Tab funktioniert)
+  // swimmer_disciplines Sync
   await db.from('swimmer_disciplines').delete().eq('discipline_id', discId);
-  // Alle Schwimmer aus ALLEN Staffeln dieser Disziplin sammeln
   const { data: allStaffeln } = await db.from('staffeln').select('id').eq('discipline_id', discId);
   const staffelIds = (allStaffeln || []).map(s => s.id);
   if (staffelIds.length > 0) {
@@ -483,9 +495,9 @@ async function saveStaffelPositions(staffelId, discId) {
       await db.from('swimmer_disciplines').insert(uniqueSwimmers.map(sid => ({ swimmer_id: sid, discipline_id: discId })));
     }
   }
-
   loadStaffeln();
 }
+
 
 async function deleteStaffel(staffelId) {
   if (!confirm('Staffel wirklich löschen?')) return;
@@ -505,14 +517,16 @@ async function loadTimesForSwimmer() {
   const swimmer = allSwimmers.find(s => s.id === swId);
   if (!swimmer) return;
 
-  // Disziplinen + Zeiten laden
   const [discRes, timeRes] = await Promise.all([
     db.from('swimmer_disciplines').select('discipline_id,disciplines(id,name,type)').eq('swimmer_id', swId),
-    db.from('times').select('discipline_id,time').eq('user_id', swimmer.user_id),
+    db.from('times').select('discipline_id,time,created_at').eq('user_id', swimmer.user_id).order('created_at', { ascending: false }),
   ]);
 
-  const timeMap = {};
-  (timeRes.data || []).forEach(t => { timeMap[t.discipline_id] = t.time; });
+  const timesByDisc = {};
+  (timeRes.data || []).forEach(t => {
+    if (!timesByDisc[t.discipline_id]) timesByDisc[t.discipline_id] = [];
+    timesByDisc[t.discipline_id].push(t);
+  });
 
   ['einzel', 'mannschaft'].forEach(type => {
     const filtered = (discRes.data || []).filter(d => d.disciplines.type === type);
@@ -523,23 +537,35 @@ async function loadTimesForSwimmer() {
       return;
     }
 
-    let html = '<table><thead><tr><th>Disziplin</th><th>Zeit</th><th></th></tr></thead><tbody>';
+    let html = '';
     filtered.forEach(d => {
-      const t = timeMap[d.discipline_id];
-      html += `<tr>
-        <td>${d.disciplines.name}</td>
-        <td><input type="text" id="trt-${d.discipline_id}" placeholder="1:23,45"
-          value="${t != null ? formatTime(t) : ''}"
-          style="width:120px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem;"></td>
-        <td><button class="btn btn-sm btn-secondary" onclick="trainerSaveTime('${swimmer.user_id}','${d.discipline_id}',this)">Speichern</button></td>
-      </tr>`;
+      const discTimes = timesByDisc[d.discipline_id] || [];
+      const latest = discTimes.length > 0 ? formatTime(discTimes[0].time) : '–';
+
+      html += `<div class="disc-item">
+        <div class="disc-item-header" onclick="toggleDisc(this)">
+          <span><strong>${d.disciplines.name}</strong>
+            <span style="font-size:0.82rem;color:var(--text-light);margin-left:0.5rem">Letzte: ${latest}</span>
+          </span>
+          <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
+        </div>
+        <div class="disc-item-body">
+          <div class="form-row" style="align-items:flex-end;margin-bottom:0.8rem">
+            <div class="form-group" style="flex:0 0 140px">
+              <input type="text" id="trt-${d.discipline_id}" placeholder="1:23,45"
+                style="width:100%;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem;">
+            </div>
+            <button class="btn btn-sm btn-secondary" onclick="trainerSaveTime('${swimmer.user_id}','${d.discipline_id}','${swId}',this)">Speichern</button>
+          </div>
+          ${discTimes.length > 0 ? '<div class="section-title" style="font-size:0.82rem">Historie</div><table><thead><tr><th>Datum</th><th>Zeit</th></tr></thead><tbody>' + discTimes.map(t => `<tr><td>${formatDate(t.created_at)}</td><td>${formatTime(t.time)}</td></tr>`).join('') + '</tbody></table>' : '<p style="color:var(--text-light);font-size:0.85rem">Noch keine Zeiten.</p>'}
+        </div>
+      </div>`;
     });
-    html += '</tbody></table>';
     container.innerHTML = html;
   });
 }
 
-async function trainerSaveTime(userId, discId, btn) {
+async function trainerSaveTime(userId, discId, swId, btn) {
   const val = document.getElementById('trt-' + discId).value.trim();
   if (!val) { alert('Bitte Zeit eingeben.'); return; }
   const sec = parseTime(val);
@@ -548,6 +574,7 @@ async function trainerSaveTime(userId, discId, btn) {
     user_id: userId, discipline_id: discId, time: sec
   });
   confirmBtn(btn, !error);
+  if (!error) loadTimesForSwimmer();
 }
 
 // ─── KONTEN ────────────────────────────────────────────────
