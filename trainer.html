@@ -409,8 +409,8 @@ async function loadStaffeln() {
         </span>
         <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
       </div>
-      <div class="disc-item-body">
-
+      <div class="disc-item-body">`;
+    
     group.staffeln.forEach((st, idx) => {
       const positions = posMap[st.id] || {};
       const filledCount = Object.keys(positions).length;
