@@ -452,21 +452,51 @@ async function loadTimesForSwimmer() {
     tsTimeMap[t.teilstrecke_id].push(t);
   });
 
-  let tsHtml = '<table><thead><tr><th>Teilstrecke</th><th>Beste Zeit</th><th>Neue Zeit</th><th></th></tr></thead><tbody>';
-  (allTs || []).forEach(ts => {
-    const history = tsTimeMap[ts.id] || [];
-    const best = history.length > 0 ? formatTime(history[0].time) : '–';
-    tsHtml += `<tr>
-      <td>${ts.name}</td>
-      <td>${best}</td>
-      <td><input type="text" id="ts-time-${ts.id}" placeholder="1:23,45"
-        onkeydown="if(event.key==='Enter') autoSaveTsTime('${swimmer.user_id}','${ts.id}')"
-        onblur="autoSaveTsTime('${swimmer.user_id}','${ts.id}')"
-        style="width:100px;padding:4px 8px;border:1.5px solid var(--border);border-radius:6px"></td>
-      <td><span id="save-status-ts-${ts.id}" style="font-size:0.8rem;color:var(--success)"></span></td>
-    </tr>`;
-  });
-  tsHtml += '</tbody></table>';
+  const ohneZeit = (allTs || []).filter(ts => !(tsTimeMap[ts.id] && tsTimeMap[ts.id].length > 0));
+  const mitZeit  = (allTs || []).filter(ts => tsTimeMap[ts.id] && tsTimeMap[ts.id].length > 0);
+
+  let tsHtml = '';
+
+  // Ohne Zeit – direkt sichtbar
+  if (ohneZeit.length > 0) {
+    tsHtml += '<table><thead><tr><th>Teilstrecke</th><th>Zeit</th><th></th></tr></thead><tbody>';
+    ohneZeit.forEach(ts => {
+      tsHtml += `<tr>
+        <td>${ts.name}</td>
+        <td><input type="text" id="ts-time-${ts.id}" placeholder="0:23,45"
+          onkeydown="if(event.key==='Enter') autoSaveTsTime('${swimmer.user_id}','${ts.id}')"
+          onblur="autoSaveTsTime('${swimmer.user_id}','${ts.id}')"
+          style="width:100px;padding:4px 8px;border:1.5px solid var(--border);border-radius:6px"></td>
+        <td><span id="save-status-ts-${ts.id}" style="font-size:0.8rem"></span></td>
+      </tr>`;
+    });
+    tsHtml += '</tbody></table>';
+  }
+
+  // Mit Zeit – aufklappbar
+  if (mitZeit.length > 0) {
+    tsHtml += `<div class="disc-item" style="margin-top:1rem">
+      <div class="disc-item-header" onclick="toggleDisc(this)">
+        <strong>Bereits eingetragen (${mitZeit.length})</strong>
+        <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
+      </div>
+      <div class="disc-item-body">
+        <table><thead><tr><th>Teilstrecke</th><th>Bestzeit</th><th>Neue Zeit</th><th></th></tr></thead><tbody>`;
+    mitZeit.forEach(ts => {
+      const best = formatTime(tsTimeMap[ts.id][0].time);
+      tsHtml += `<tr>
+        <td>${ts.name}</td>
+        <td>${best}</td>
+        <td><input type="text" id="ts-time-${ts.id}" placeholder="0:23,45"
+          onkeydown="if(event.key==='Enter') autoSaveTsTime('${swimmer.user_id}','${ts.id}')"
+          onblur="autoSaveTsTime('${swimmer.user_id}','${ts.id}')"
+          style="width:100px;padding:4px 8px;border:1.5px solid var(--border);border-radius:6px"></td>
+        <td><span id="save-status-ts-${ts.id}" style="font-size:0.8rem"></span></td>
+      </tr>`;
+    });
+    tsHtml += '</tbody></table></div></div>';
+  }
+
   cTs.innerHTML = tsHtml;
 }
 
