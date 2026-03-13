@@ -524,7 +524,15 @@ async function autoSaveTsTime(userId, tsId) {
   if (!val) return;
   const sec = parseTime(val);
   if (sec === null) return;
-  const { error } = await db.from('times').insert({ user_id: userId, teilstrecke_id: tsId, time: sec });
+  // Bestehende Teilstreckenzeit überschreiben (upsert)
+  const { data: existing } = await db.from('times')
+    .select('id').eq('user_id', userId).eq('teilstrecke_id', tsId).maybeSingle();
+  let error;
+  if (existing) {
+    ({ error } = await db.from('times').update({ time: sec }).eq('id', existing.id));
+  } else {
+    ({ error } = await db.from('times').insert({ user_id: userId, teilstrecke_id: tsId, time: sec }));
+  }
   const status = document.getElementById('save-status-ts-' + tsId);
   if (status) {
     status.textContent = error ? 'Fehler' : 'Gespeichert';
