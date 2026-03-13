@@ -225,18 +225,46 @@ async function loadTimes() {
 
   const tsContainer = document.getElementById('times-teilstrecken');
   if (allTs && allTs.length > 0) {
-    let tsHtml = '<table><thead><tr><th>Teilstrecke</th><th>Beste Zeit</th><th>Neue Zeit</th><th></th></tr></thead><tbody>';
-    allTs.forEach(ts => {
-      const history = tsTimeMap[ts.id] || [];
-      const best = history.length > 0 ? formatTime(history[0].time) : '–';
-      tsHtml += `<tr>
-        <td>${ts.name}</td>
-        <td>${best}</td>
-        <td><input type="text" id="ts-time-${ts.id}" placeholder="0:23,45" style="width:120px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem"></td>
-        <td><button class="btn btn-sm btn-secondary" onclick="saveTsTime('${ts.id}',this)">Speichern</button></td>
-      </tr>`;
-    });
-    tsHtml += '</tbody></table>';
+    // Aufteilen: ohne Zeit (offen) vs. mit Zeit (zugeklappt)
+    const ohneZeit = allTs.filter(ts => !(tsTimeMap[ts.id] && tsTimeMap[ts.id].length > 0));
+    const mitZeit  = allTs.filter(ts => tsTimeMap[ts.id] && tsTimeMap[ts.id].length > 0);
+
+    let tsHtml = '';
+
+    // Teilstrecken ohne eingetragene Zeit – direkt sichtbar
+    if (ohneZeit.length > 0) {
+      tsHtml += '<table><thead><tr><th>Teilstrecke</th><th>Zeit</th><th></th></tr></thead><tbody>';
+      ohneZeit.forEach(ts => {
+        tsHtml += `<tr>
+          <td>${ts.name}</td>
+          <td><input type="text" id="ts-time-${ts.id}" placeholder="0:23,45" style="width:120px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem"></td>
+          <td><button class="btn btn-sm btn-secondary" onclick="saveTsTime('${ts.id}',this)">Speichern</button></td>
+        </tr>`;
+      });
+      tsHtml += '</tbody></table>';
+    }
+
+    // Teilstrecken mit Zeit – in aufklappbarem Bereich
+    if (mitZeit.length > 0) {
+      tsHtml += `<div class="disc-item" style="margin-top:1rem">
+        <div class="disc-item-header" onclick="toggleDisc(this)">
+          <strong>Bereits eingetragen (${mitZeit.length})</strong>
+          <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
+        </div>
+        <div class="disc-item-body">
+          <table><thead><tr><th>Teilstrecke</th><th>Bestzeit</th><th>Neue Zeit</th><th></th></tr></thead><tbody>`;
+      mitZeit.forEach(ts => {
+        const best = formatTime(tsTimeMap[ts.id][0].time);
+        tsHtml += `<tr>
+          <td>${ts.name}</td>
+          <td>${best}</td>
+          <td><input type="text" id="ts-time-${ts.id}" placeholder="0:23,45" style="width:120px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem"></td>
+          <td><button class="btn btn-sm btn-secondary" onclick="saveTsTime('${ts.id}',this)">Speichern</button></td>
+        </tr>`;
+      });
+      tsHtml += '</tbody></table></div></div>';
+    }
+
     tsContainer.innerHTML = tsHtml;
   } else {
     tsContainer.innerHTML = '<p style="color:var(--text-light)">Keine Teilstrecken vorhanden.</p>';
