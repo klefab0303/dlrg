@@ -11,7 +11,6 @@ let swimmerId = null;
   currentUser = await checkAuth('schwimmer');
   if (!currentUser) return;
 
-  // Eigenes Schwimmerprofil laden
   const { data: swimmer } = await db.from('swimmers')
     .select('id,name,year').eq('user_id', currentUser.id).single();
 
@@ -32,7 +31,6 @@ let swimmerId = null;
 
 // ═══ TRAININGS ══════════════════════════════════════════
 
-/** Nur zugewiesene Trainings laden + Anwesenheit anzeigen. */
 async function loadTrainings() {
   const { data: assignments } = await db
     .from('training_swimmers').select('training_id').eq('swimmer_id', swimmerId);
@@ -71,7 +69,6 @@ async function loadTrainings() {
   container.innerHTML = html;
 }
 
-/** Anwesenheitsstatus speichern. */
 async function saveAtt(trainingId, btn) {
   const sel = document.querySelector(`input[name="att-${trainingId}"]:checked`);
   if (!sel) { alert('Bitte Ja oder Nein wählen.'); return; }
@@ -83,7 +80,6 @@ async function saveAtt(trainingId, btn) {
 
 // ═══ DISZIPLINEN ════════════════════════════════════════
 
-/** Einzel- oder Mannschafts-Disziplinen laden. */
 async function loadDisciplines(type) {
   const container = document.getElementById(type + '-list');
 
@@ -192,7 +188,6 @@ async function loadDisciplines(type) {
 
 // ═══ ZEITEN ═════════════════════════════════════════════
 
-/** Eigene Einzel- und Teilstrecken-Zeiten laden. */
 async function loadTimes() {
   const { data: myDiscs } = await db.from('swimmer_disciplines')
     .select('discipline_id, disciplines(id,name,type)')
@@ -201,6 +196,7 @@ async function loadTimes() {
   const { data: times } = await db.from('times')
     .select('discipline_id,time,created_at')
     .eq('user_id', currentUser.id)
+    .is('teilstrecke_id', null)
     .order('created_at', { ascending: false });
 
   const timesByDisc = {};
@@ -225,52 +221,18 @@ async function loadTimes() {
 
   const tsContainer = document.getElementById('times-teilstrecken');
   if (allTs && allTs.length > 0) {
-    // Aufteilen: ohne Zeit (offen) vs. mit Zeit (zugeklappt)
-    const ohneZeit = allTs.filter(ts => !(tsTimeMap[ts.id] && tsTimeMap[ts.id].length > 0));
-    const mitZeit  = allTs.filter(ts => tsTimeMap[ts.id] && tsTimeMap[ts.id].length > 0);
-
-    let tsHtml = '';
-
-    // Teilstrecken ohne eingetragene Zeit – direkt sichtbar
-    if (ohneZeit.length > 0) {
-      tsHtml += '<table><thead><tr><th>Teilstrecke</th><th>Zeit</th><th></th></tr></thead><tbody>';
-      ohneZeit.forEach(ts => {
-        tsHtml += `<tr>
-          <td>${ts.name}</td>
-          <td><input type="text" id="ts-time-${ts.id}" placeholder="0:23,45"
-            onkeydown="if(event.key==='Enter') saveTsTime('${ts.id}')"
-            onblur="saveTsTime('${ts.id}')"
-            style="width:120px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem"></td>
-          <td><span id="save-status-ts-${ts.id}" style="font-size:0.8rem"></span></td>
-        </tr>`;
-      });
-      tsHtml += '</tbody></table>';
-    }
-
-    // Teilstrecken mit Zeit – in aufklappbarem Bereich
-    if (mitZeit.length > 0) {
-      tsHtml += `<div class="disc-item" style="margin-top:1rem">
-        <div class="disc-item-header" onclick="toggleDisc(this)">
-          <strong>Bereits eingetragen (${mitZeit.length})</strong>
-          <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
-        </div>
-        <div class="disc-item-body">
-        <table><thead><tr><th>Teilstrecke</th><th>Bestzeit</th><th>Neue Zeit</th><th></th></tr></thead><tbody>`;
-      mitZeit.forEach(ts => {
-        const best = formatTime(tsTimeMap[ts.id][0].time);
-        tsHtml += `<tr>
-          <td>${ts.name}</td>
-          <td>${best}</td>
-          <td><input type="text" id="ts-time-${ts.id}" placeholder="0:23,45"
-            onkeydown="if(event.key==='Enter') saveTsTime('${ts.id}')"
-            onblur="saveTsTime('${ts.id}')"
-            style="width:120px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem"></td>
-          <td><span id="save-status-ts-${ts.id}" style="font-size:0.8rem"></span></td>
-        </tr>`;
-      });
-      tsHtml += '</tbody></table></div></div>';
-    }
-
+    let tsHtml = '<table><thead><tr><th>Teilstrecke</th><th>Aktuelle Zeit</th><th>Neue Zeit</th><th></th></tr></thead><tbody>';
+    allTs.forEach(ts => {
+      const current = tsTimeMap[ts.id] && tsTimeMap[ts.id].length > 0 ? formatTime(tsTimeMap[ts.id][0].time) : '–';
+      tsHtml += `<tr>
+        <td>${ts.name}</td>
+        <td>${current}</td>
+        <td><input type="text" id="ts-time-${ts.id}" placeholder="0:23,45"
+          style="width:120px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem"></td>
+        <td><button class="btn btn-sm btn-primary" onclick="saveTsTime('${ts.id}')">Speichern</button></td>
+      </tr>`;
+    });
+    tsHtml += '</tbody></table>';
     tsContainer.innerHTML = tsHtml;
   } else {
     tsContainer.innerHTML = '<p style="color:var(--text-light)">Keine Teilstrecken vorhanden.</p>';
@@ -295,11 +257,10 @@ async function loadTimes() {
           <span style="font-size:0.8rem;color:var(--text-light)">▼</span>
         </div>
         <div class="disc-item-body">
-          <div style="margin-bottom:0.8rem">
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.8rem">
             <input type="text" id="time-${d.discipline_id}" placeholder="1:23,45"
-              onkeydown="if(event.key==='Enter') saveTime('${d.discipline_id}')"
-              onblur="saveTime('${d.discipline_id}')"
-              style="width:120px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem;margin-right:0.5rem;">
+              style="width:120px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:0.9rem;">
+            <button class="btn btn-sm btn-primary" onclick="saveTime('${d.discipline_id}')">Speichern</button>
             <span id="save-status-time-${d.discipline_id}" style="font-size:0.8rem"></span>
           </div>
           ${discTimes.length > 0 ? '<div class="section-title" style="font-size:0.82rem">Historie</div><table><thead><tr><th>Datum</th><th>Zeit</th></tr></thead><tbody>' + discTimes.map(t => `<tr><td>${formatDate(t.created_at)}</td><td>${formatTime(t.time)}</td></tr>`).join('') + '</tbody></table>' : '<p style="color:var(--text-light);font-size:0.85rem">Noch keine Zeiten.</p>'}
@@ -310,46 +271,47 @@ async function loadTimes() {
   }
 }
 
-/** Einzelzeit auto-speichern (bei Enter/Blur). */
+/** Einzelzeit speichern (INSERT → Historie). */
 async function saveTime(discId) {
   const input = document.getElementById('time-' + discId);
   const val = input.value.trim();
-  if (!val) return;
+  if (!val) { alert('Bitte Zeit eingeben.'); return; }
   const sec = parseTime(val);
-  if (sec === null) return;
+  if (sec === null) { alert('Ungültiges Format. Bitte mm:ss,hh eingeben.'); return; }
   const { error } = await db.from('times').insert({
     user_id: currentUser.id, discipline_id: discId, time: sec
   });
   const status = document.getElementById('save-status-time-' + discId);
   if (status) {
-    status.textContent = error ? 'Fehler' : 'Gespeichert';
+    status.textContent = error ? 'Fehler: ' + error.message : 'Gespeichert ✓';
     status.style.color = error ? 'var(--danger)' : 'var(--success)';
-    setTimeout(() => status.textContent = '', 2000);
+    setTimeout(() => status.textContent = '', 3000);
   }
   if (!error) { input.value = ''; loadTimes(); }
 }
 
-/** Teilstreckenzeit speichern (überschreibt bestehende). */
+/** Teilstreckenzeit speichern (UPSERT → überschreibt). */
 async function saveTsTime(tsId) {
   const input = document.getElementById('ts-time-' + tsId);
   const val = input.value.trim();
-  if (!val) return;
+  if (!val) { alert('Bitte Zeit eingeben.'); return; }
   const sec = parseTime(val);
-  if (sec === null) return;
-  // Bestehende Zeit überschreiben
+  if (sec === null) { alert('Ungültiges Format. Bitte mm:ss,hh eingeben.'); return; }
+
   const { data: existing } = await db.from('times')
     .select('id').eq('user_id', currentUser.id).eq('teilstrecke_id', tsId).maybeSingle();
+
   let error;
   if (existing) {
     ({ error } = await db.from('times').update({ time: sec }).eq('id', existing.id));
   } else {
     ({ error } = await db.from('times').insert({ user_id: currentUser.id, teilstrecke_id: tsId, time: sec }));
   }
-  const status = document.getElementById('save-status-ts-' + tsId);
-  if (status) {
-    status.textContent = error ? 'Fehler' : 'Gespeichert';
-    status.style.color = error ? 'var(--danger)' : 'var(--success)';
-    setTimeout(() => status.textContent = '', 2000);
+
+  if (error) {
+    alert('Fehler: ' + error.message);
+  } else {
+    input.value = '';
+    loadTimes();
   }
-  if (!error) { input.value = ''; loadTimes(); }
 }
